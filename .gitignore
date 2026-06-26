@@ -1,0 +1,23 @@
+# Backend / dependencias
+**/bin/
+**/obj/
+**/.vs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.user
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
