@@ -20,7 +20,7 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <h1>SPA Thermal Daymán</h1>
+          <img src="/logo-spa.png" alt="SPA Thermal Daymán" className="brand-logo" />
           <p>Termas del Daymán · Salto, Uruguay</p>
         </div>
         <nav className="sidebar-nav">
