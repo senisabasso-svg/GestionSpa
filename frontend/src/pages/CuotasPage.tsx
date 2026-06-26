@@ -14,20 +14,30 @@ export default function CuotasPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [pagoModal, setPagoModal] = useState<CuotaMensual | null>(null);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
+  const [pagoError, setPagoError] = useState('');
 
   const load = () => api.cuotas.list(mes, anio).then(setCuotas).catch(console.error);
   useEffect(() => { load(); }, [mes, anio]);
 
   const generar = async () => {
+    const ahora = new Date();
+    const esPasado = anio < ahora.getFullYear() || (anio === ahora.getFullYear() && mes < ahora.getMonth() + 1);
+    if (esPasado && !confirm(`¿Generar cuotas para ${MESES[mes - 1]} ${anio}? Es un período pasado.`)) return;
     await api.cuotas.generar(mes, anio);
     load();
   };
 
   const registrarPago = async () => {
     if (!pagoModal) return;
-    await api.cuotas.pagar(pagoModal.id, pagoForm);
-    setPagoModal(null);
-    load();
+    setPagoError('');
+    if (pagoForm.monto <= 0) { setPagoError('El monto debe ser mayor a 0'); return; }
+    try {
+      await api.cuotas.pagar(pagoModal.id, pagoForm);
+      setPagoModal(null);
+      load();
+    } catch (e) {
+      setPagoError(e instanceof Error ? e.message : 'Error al registrar pago');
+    }
   };
 
   return (
@@ -48,7 +58,7 @@ export default function CuotasPage() {
       </div>
 
       <div className="card table-container">
-        <table>
+        <table className="data-table">
           <thead>
             <tr>
               <th>Nº Socio</th><th>Socio</th><th>Cuota base</th><th>Servicios</th>
@@ -88,9 +98,10 @@ export default function CuotasPage() {
               <strong>{pagoModal.socioNombre}</strong> — {MESES[pagoModal.mes - 1]} {pagoModal.anio}
               <br />Saldo pendiente: <strong>{formatUYU(pagoModal.saldoPendiente)}</strong>
             </p>
+            {pagoError && <div className="alert alert-error">{pagoError}</div>}
             <div className="form-group">
               <label>Monto (UYU)</label>
-              <input className="form-control" type="number" value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
+              <input className="form-control" type="number" min={1} value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
             </div>
             <div className="form-group">
               <label>Método de pago</label>

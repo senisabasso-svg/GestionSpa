@@ -21,7 +21,7 @@ public class InformesController(AppDbContext db) : ControllerBase
         var finMes = inicioMes.AddMonths(1);
 
         var pagosMes = await db.Pagos
-            .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes)
+            .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes && p.Monto > 0)
             .SumAsync(p => p.Monto);
 
         var cuotasPendientes = await db.CuotasMensuales
@@ -141,7 +141,7 @@ public class InformesController(AppDbContext db) : ControllerBase
 
         var datos = await db.Cargos
             .Include(c => c.Servicio)
-            .Where(c => c.Fecha >= inicio && c.Fecha < fin)
+            .Where(c => c.Fecha >= inicio && c.Fecha < fin && c.Cantidad > 0)
             .GroupBy(c => new { c.ServicioId, c.Servicio.Nombre })
             .Select(g => new
             {

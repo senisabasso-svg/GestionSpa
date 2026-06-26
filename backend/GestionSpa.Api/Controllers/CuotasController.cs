@@ -43,6 +43,9 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
         var cuota = await db.CuotasMensuales.FindAsync(id);
         if (cuota == null) return NotFound();
 
+        var pagoErrors = ValidationHelper.ValidateMontoPago(dto.Monto);
+        if (pagoErrors.Count > 0) return ValidationHelper.ToBadRequest(pagoErrors);
+
         var pago = new Pago
         {
             CuotaMensualId = id,
@@ -57,13 +60,15 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService) : Cont
         cuota.MontoPagado += dto.Monto;
 
         var total = cuota.Total;
-        if (cuota.MontoPagado >= total)
+        if (total > 0 && cuota.MontoPagado >= total)
         {
             cuota.EstadoPago = EstadoPago.Pagado;
             cuota.FechaPago = DateTime.UtcNow;
         }
         else if (cuota.MontoPagado > 0)
             cuota.EstadoPago = EstadoPago.Parcial;
+        else
+            cuota.EstadoPago = EstadoPago.Pendiente;
 
         await db.SaveChangesAsync();
 

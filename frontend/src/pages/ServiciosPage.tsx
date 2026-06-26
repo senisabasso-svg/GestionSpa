@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { Servicio, CategoriaServicio } from '../types';
 import { formatUYU } from '../types';
+import { validateServicio, LIMITS } from '../utils/validation';
 import { Plus } from 'lucide-react';
 
 const categorias: CategoriaServicio[] = ['Masajes', 'Termal', 'Facial', 'Corporal', 'Paquetes', 'Otros'];
@@ -12,22 +13,30 @@ export default function ServiciosPage() {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const load = () => api.servicios.list().then(setServicios).catch(console.error);
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditId(null); setForm(emptyForm); setModal(true); };
+  const openNew = () => { setEditId(null); setForm(emptyForm); setErrors([]); setModal(true); };
   const openEdit = (s: Servicio) => {
     setEditId(s.id);
     setForm({ nombre: s.nombre, descripcion: s.descripcion || '', categoria: s.categoria, precio: s.precio, duracionMinutos: s.duracionMinutos, soloSocios: s.soloSocios });
-    setModal(true);
+    setErrors([]); setModal(true);
   };
 
   const save = async () => {
-    if (editId) await api.servicios.update(editId, form);
-    else await api.servicios.create(form);
-    setModal(false);
-    load();
+    setErrors([]);
+    const validationErrors = validateServicio(form);
+    if (validationErrors.length > 0) { setErrors(validationErrors); return; }
+    try {
+      if (editId) await api.servicios.update(editId, form);
+      else await api.servicios.create(form);
+      setModal(false);
+      load();
+    } catch (e) {
+      setErrors([e instanceof Error ? e.message : 'Error al guardar']);
+    }
   };
 
   const toggle = async (id: number) => { await api.servicios.toggle(id); load(); };
@@ -74,9 +83,14 @@ export default function ServiciosPage() {
         <div className="modal-overlay" onClick={() => setModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>{editId ? 'Editar Servicio' : 'Nuevo Servicio'}</h3>
+            {errors.length > 0 && (
+              <div className="alert alert-error">
+                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>{errors.map((err, i) => <li key={i}>{err}</li>)}</ul>
+              </div>
+            )}
             <div className="form-group">
               <label>Nombre *</label>
-              <input className="form-control" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+              <input className="form-control" maxLength={LIMITS.nombre} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
             </div>
             <div className="form-group">
               <label>Descripción</label>
@@ -91,13 +105,13 @@ export default function ServiciosPage() {
               </div>
               <div className="form-group">
                 <label>Precio (UYU)</label>
-                <input className="form-control" type="number" value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} />
+                <input className="form-control" type="number" min={1} value={form.precio} onChange={e => setForm({ ...form, precio: Number(e.target.value) })} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Duración (minutos)</label>
-                <input className="form-control" type="number" value={form.duracionMinutos} onChange={e => setForm({ ...form, duracionMinutos: Number(e.target.value) })} />
+                <input className="form-control" type="number" min={0} value={form.duracionMinutos} onChange={e => setForm({ ...form, duracionMinutos: Number(e.target.value) })} />
               </div>
               <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
                 <label className="form-check">

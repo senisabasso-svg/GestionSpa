@@ -15,13 +15,17 @@ export default function InformesPage() {
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
   const [cobranza, setCobranza] = useState<InformeCobranza[]>([]);
   const [ingresos, setIngresos] = useState<{ fecha: string; totalEntradas: number; accesosPermitidos: number; accesosRechazados: number; detalle: Ingreso[] } | null>(null);
+  const [ingresosLoading, setIngresosLoading] = useState(false);
   const [serviciosTop, setServiciosTop] = useState<{ nombre: string; cantidad: number; total: number }[]>([]);
   const [fechaIngresos, setFechaIngresos] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (tab === 'resumen') api.informes.resumen(mes, anio).then(setResumen);
     if (tab === 'cobranza') api.informes.cobranza(mes, anio).then(setCobranza);
-    if (tab === 'ingresos') api.informes.ingresosDiarios(fechaIngresos).then(setIngresos);
+    if (tab === 'ingresos') {
+      setIngresosLoading(true);
+      api.informes.ingresosDiarios(fechaIngresos).then(setIngresos).finally(() => setIngresosLoading(false));
+    }
     if (tab === 'servicios') api.informes.serviciosMasVendidos(mes, anio).then(setServiciosTop);
   }, [tab, mes, anio, fechaIngresos]);
 
@@ -91,7 +95,7 @@ export default function InformesPage() {
 
       {tab === 'cobranza' && (
         <div className="card table-container">
-          <table>
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Nº Socio</th><th>Nombre</th><th>Estado cuota</th>
@@ -128,7 +132,8 @@ export default function InformesPage() {
           <div className="toolbar">
             <input type="date" className="form-control" style={{ width: 200 }} value={fechaIngresos} onChange={e => setFechaIngresos(e.target.value)} />
           </div>
-          {ingresos && (
+          {ingresosLoading && <div className="empty-state">Cargando ingresos...</div>}
+          {!ingresosLoading && ingresos && (
             <>
               <div className="card-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 <div className="stat-card"><div className="label">Total registros</div><div className="value">{ingresos.totalEntradas}</div></div>
@@ -136,7 +141,7 @@ export default function InformesPage() {
                 <div className="stat-card danger"><div className="label">Accesos rechazados</div><div className="value">{ingresos.accesosRechazados}</div></div>
               </div>
               <div className="card table-container">
-                <table>
+                <table className="data-table">
                   <thead>
                     <tr><th>Hora</th><th>Nº Socio</th><th>Nombre</th><th>Tipo</th><th>Resultado</th><th>Motivo</th></tr>
                   </thead>
@@ -166,7 +171,7 @@ export default function InformesPage() {
 
       {tab === 'servicios' && (
         <div className="card table-container">
-          <table>
+          <table className="data-table">
             <thead>
               <tr><th>#</th><th>Servicio</th><th>Cantidad</th><th>Total facturado</th></tr>
             </thead>

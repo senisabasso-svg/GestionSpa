@@ -30,6 +30,13 @@ export default function CargosPage() {
   }, []);
 
   const save = async () => {
+    setError('');
+    const errs: string[] = [];
+    if (tipo === 'socio' && !form.socioId) errs.push('Debés seleccionar un socio');
+    if (tipo === 'cliente' && !form.clienteId) errs.push('Debés seleccionar un cliente');
+    if (!form.servicioId) errs.push('Debés seleccionar un servicio');
+    if (form.cantidad < 1) errs.push('La cantidad debe ser al menos 1');
+    if (errs.length > 0) { setError(errs.join('. ')); return; }
     try {
       const data = {
         servicioId: form.servicioId,
@@ -48,12 +55,16 @@ export default function CargosPage() {
 
   const registrarPago = async () => {
     if (!pagoModal) return;
+    if (pagoForm.monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
     await api.cargos.pagar(pagoModal.id, pagoForm);
     setPagoModal(null);
     load();
   };
 
   const servicioSel = servicios.find(s => s.id === form.servicioId);
+  const serviciosValidos = servicios
+    .filter(s => tipo === 'socio' || !s.soloSocios)
+    .filter(s => s.precio > 0);
 
   return (
     <div>
@@ -67,7 +78,7 @@ export default function CargosPage() {
       </div>
 
       <div className="card table-container">
-        <table>
+        <table className="data-table">
           <thead>
             <tr><th>Fecha</th><th>Servicio</th><th>Persona</th><th>Tipo</th><th>Monto</th><th>Cuota</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
@@ -128,7 +139,7 @@ export default function CargosPage() {
               <label>Servicio *</label>
               <select className="form-control" value={form.servicioId} onChange={e => setForm({ ...form, servicioId: Number(e.target.value) })}>
                 <option value={0}>Seleccionar servicio...</option>
-                {servicios.filter(s => tipo === 'socio' || !s.soloSocios).map(s => (
+                {serviciosValidos.map(s => (
                   <option key={s.id} value={s.id}>{s.nombre} — {formatUYU(s.precio)}</option>
                 ))}
               </select>
@@ -139,7 +150,7 @@ export default function CargosPage() {
             <div className="form-row">
               <div className="form-group">
                 <label>Cantidad</label>
-                <input className="form-control" type="number" min={1} value={form.cantidad} onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} />
+                <input className="form-control" type="number" min={1} value={form.cantidad} onChange={e => setForm({ ...form, cantidad: Math.max(1, Number(e.target.value)) })} />
               </div>
               <div className="form-group">
                 <label>Atendido por</label>
@@ -178,7 +189,7 @@ export default function CargosPage() {
             </p>
             <div className="form-group">
               <label>Monto (UYU)</label>
-              <input className="form-control" type="number" value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
+              <input className="form-control" type="number" min={1} value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
             </div>
             <div className="form-group">
               <label>Método de pago</label>

@@ -1,6 +1,7 @@
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
+using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,20 +9,21 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SociosController(AppDbContext db) : ControllerBase
+public class SociosController(AppDbContext db, CuotaService cuotaService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<SocioDto>>> GetAll([FromQuery] string? buscar, [FromQuery] EstadoSocio? estado)
     {
         var query = db.Socios.AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(buscar))
+        var term = ValidationHelper.SanitizeSearchTerm(buscar);
+        if (term != null)
         {
-            var term = buscar.ToLower();
+            var lower = term.ToLower();
             query = query.Where(s =>
                 s.NumeroSocio.Contains(term) ||
-                s.Nombre.ToLower().Contains(term) ||
-                s.Apellido.ToLower().Contains(term) ||
+                s.Nombre.ToLower().Contains(lower) ||
+                s.Apellido.ToLower().Contains(lower) ||
                 s.Cedula.Contains(term));
         }
 
@@ -49,19 +51,24 @@ public class SociosController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<SocioDto>> Create(CrearSocioDto dto)
     {
+        var errors = ValidationHelper.ValidateSocio(
+            dto.Nombre, dto.Apellido, dto.Cedula, dto.Telefono, dto.Email,
+            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
+
         if (await db.Socios.AnyAsync(s => s.Cedula == dto.Cedula))
-            return BadRequest(new { mensaje = "Ya existe un socio con esa cédula" });
+            return BadRequest(new { mensaje = "Ya existe un socio con esa cédula", errores = new[] { "Ya existe un socio con esa cédula" } });
 
         var numeroSocio = await GenerarNumeroSocioAsync();
 
         var socio = new Socio
         {
             NumeroSocio = numeroSocio,
-            Nombre = dto.Nombre,
-            Apellido = dto.Apellido,
-            Cedula = dto.Cedula,
-            Telefono = dto.Telefono,
-            Email = dto.Email,
+            Nombre = dto.Nombre.Trim(),
+            Apellido = dto.Apellido.Trim(),
+            Cedula = dto.Cedula.Trim(),
+            Telefono = dto.Telefono?.Trim(),
+            Email = dto.Email?.Trim(),
             FechaAlta = dto.FechaAlta.ToUniversalTime(),
             FechaVencimiento = dto.FechaVencimiento?.ToUniversalTime(),
             MedioPago = dto.MedioPago,
@@ -71,6 +78,10 @@ public class SociosController(AppDbContext db) : ControllerBase
 
         db.Socios.Add(socio);
         await db.SaveChangesAsync();
+
+        var ahora = DateTime.UtcNow;
+        await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, ahora.Month, ahora.Year);
+
         return CreatedAtAction(nameof(GetById), new { id = socio.Id }, Map(socio));
     }
 
@@ -80,14 +91,19 @@ public class SociosController(AppDbContext db) : ControllerBase
         var socio = await db.Socios.FindAsync(id);
         if (socio == null) return NotFound();
 
-        if (await db.Socios.AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
-            return BadRequest(new { mensaje = "Ya existe otro socio con esa cédula" });
+        var errors = ValidationHelper.ValidateSocio(
+            dto.Nombre, dto.Apellido, dto.Cedula, dto.Telefono, dto.Email,
+            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
-        socio.Nombre = dto.Nombre;
-        socio.Apellido = dto.Apellido;
-        socio.Cedula = dto.Cedula;
-        socio.Telefono = dto.Telefono;
-        socio.Email = dto.Email;
+        if (await db.Socios.AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
+            return BadRequest(new { mensaje = "Ya existe otro socio con esa cédula", errores = new[] { "Ya existe otro socio con esa cédula" } });
+
+        socio.Nombre = dto.Nombre.Trim();
+        socio.Apellido = dto.Apellido.Trim();
+        socio.Cedula = dto.Cedula.Trim();
+        socio.Telefono = dto.Telefono?.Trim();
+        socio.Email = dto.Email?.Trim();
         socio.FechaAlta = dto.FechaAlta.ToUniversalTime();
         socio.FechaVencimiento = dto.FechaVencimiento?.ToUniversalTime();
         socio.MedioPago = dto.MedioPago;

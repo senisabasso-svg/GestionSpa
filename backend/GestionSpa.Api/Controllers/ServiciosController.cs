@@ -1,6 +1,7 @@
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
+using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,9 +35,12 @@ public class ServiciosController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ServicioDto>> Create(CrearServicioDto dto)
     {
+        var errors = ValidationHelper.ValidateServicio(dto.Nombre, dto.Precio, dto.DuracionMinutos);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
+
         var servicio = new Servicio
         {
-            Nombre = dto.Nombre,
+            Nombre = dto.Nombre.Trim(),
             Descripcion = dto.Descripcion,
             Categoria = dto.Categoria,
             Precio = dto.Precio,
@@ -55,7 +59,10 @@ public class ServiciosController(AppDbContext db) : ControllerBase
         var servicio = await db.Servicios.FindAsync(id);
         if (servicio == null) return NotFound();
 
-        servicio.Nombre = dto.Nombre;
+        var errors = ValidationHelper.ValidateServicio(dto.Nombre, dto.Precio, dto.DuracionMinutos);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
+
+        servicio.Nombre = dto.Nombre.Trim();
         servicio.Descripcion = dto.Descripcion;
         servicio.Categoria = dto.Categoria;
         servicio.Precio = dto.Precio;

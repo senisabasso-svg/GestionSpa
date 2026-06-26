@@ -8,6 +8,7 @@ import CargosPage from './pages/CargosPage';
 import CuotasPage from './pages/CuotasPage';
 import InformesPage from './pages/InformesPage';
 import IngresoPage from './pages/IngresoPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/cuotas" element={<CuotasPage />} />
           <Route path="/informes" element={<InformesPage />} />
         </Route>
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

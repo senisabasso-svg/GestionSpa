@@ -1,6 +1,7 @@
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
+using GestionSpa.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,13 +15,13 @@ public class ClientesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<List<ClienteDto>>> GetAll([FromQuery] string? buscar)
     {
         var query = db.Clientes.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(buscar))
+        var term = ValidationHelper.SanitizeSearchTerm(buscar);
+        if (term != null)
         {
-            var term = buscar.ToLower();
+            var lower = term.ToLower();
             query = query.Where(c =>
-                c.Nombre.ToLower().Contains(term) ||
-                c.Apellido.ToLower().Contains(term) ||
+                c.Nombre.ToLower().Contains(lower) ||
+                c.Apellido.ToLower().Contains(lower) ||
                 (c.Cedula != null && c.Cedula.Contains(term)));
         }
 
@@ -38,13 +39,16 @@ public class ClientesController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ClienteDto>> Create(CrearClienteDto dto)
     {
+        var errors = ValidationHelper.ValidateCliente(dto.Nombre, dto.Apellido, dto.Email);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
+
         var cliente = new Cliente
         {
-            Nombre = dto.Nombre,
-            Apellido = dto.Apellido,
-            Cedula = dto.Cedula,
-            Telefono = dto.Telefono,
-            Email = dto.Email,
+            Nombre = dto.Nombre.Trim(),
+            Apellido = dto.Apellido.Trim(),
+            Cedula = dto.Cedula?.Trim(),
+            Telefono = dto.Telefono?.Trim(),
+            Email = dto.Email?.Trim(),
             Observaciones = dto.Observaciones
         };
 
@@ -59,15 +63,28 @@ public class ClientesController(AppDbContext db) : ControllerBase
         var cliente = await db.Clientes.FindAsync(id);
         if (cliente == null) return NotFound();
 
-        cliente.Nombre = dto.Nombre;
-        cliente.Apellido = dto.Apellido;
-        cliente.Cedula = dto.Cedula;
-        cliente.Telefono = dto.Telefono;
-        cliente.Email = dto.Email;
+        var errors = ValidationHelper.ValidateCliente(dto.Nombre, dto.Apellido, dto.Email);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
+
+        cliente.Nombre = dto.Nombre.Trim();
+        cliente.Apellido = dto.Apellido.Trim();
+        cliente.Cedula = dto.Cedula?.Trim();
+        cliente.Telefono = dto.Telefono?.Trim();
+        cliente.Email = dto.Email?.Trim();
         cliente.Observaciones = dto.Observaciones;
 
         await db.SaveChangesAsync();
         return Map(cliente);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var cliente = await db.Clientes.FindAsync(id);
+        if (cliente == null) return NotFound();
+        db.Clientes.Remove(cliente);
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     private static ClienteDto Map(Cliente c) => new(

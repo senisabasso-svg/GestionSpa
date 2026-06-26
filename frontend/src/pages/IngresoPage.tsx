@@ -2,16 +2,24 @@ import { useState, useRef, useEffect } from 'react';
 import { api } from '../api/client';
 import type { ResultadoIngreso } from '../types';
 
+const MAX_DIGITOS = 4;
+
 export default function IngresoPage() {
   const [numero, setNumero] = useState('');
   const [resultado, setResultado] = useState<ResultadoIngreso | null>(null);
+  const [errorVacio, setErrorVacio] = useState(false);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const validar = async (n: string) => {
-    if (!n.trim()) return;
+    if (!n.trim()) {
+      setErrorVacio(true);
+      setResultado(null);
+      return;
+    }
+    setErrorVacio(false);
     setLoading(true);
     setResultado(null);
     try {
@@ -26,10 +34,10 @@ export default function IngresoPage() {
   };
 
   const pressKey = (key: string) => {
-    if (key === 'C') { setNumero(''); setResultado(null); return; }
+    if (key === 'C') { setNumero(''); setResultado(null); setErrorVacio(false); return; }
     if (key === 'OK') { validar(numero); return; }
     if (key === 'DEL') { setNumero(prev => prev.slice(0, -1)); return; }
-    if (numero.length < 6) setNumero(prev => prev + key);
+    if (numero.length < MAX_DIGITOS) setNumero(prev => prev + key);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -44,20 +52,29 @@ export default function IngresoPage() {
         <div className="kiosk-subtitle">Termas del Daymán · Salto, Uruguay</div>
 
         <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
-          Ingresá tu número de socio
+          Ingresá tu número de socio (4 dígitos)
         </p>
 
         <input
           ref={inputRef}
           className="kiosk-input"
           value={numero}
-          onChange={e => setNumero(e.target.value.replace(/\D/g, ''))}
+          onChange={e => {
+            setErrorVacio(false);
+            setNumero(e.target.value.replace(/\D/g, '').slice(0, MAX_DIGITOS));
+          }}
           onKeyDown={handleKeyDown}
           placeholder="----"
-          maxLength={6}
+          maxLength={MAX_DIGITOS}
           inputMode="numeric"
           autoComplete="off"
         />
+
+        {errorVacio && (
+          <div className="kiosk-result error" style={{ marginTop: '1rem' }}>
+            Ingresá un número de socio
+          </div>
+        )}
 
         <div className="kiosk-keypad">
           {['1','2','3','4','5','6','7','8','9','C','0','OK'].map(key => (
@@ -65,7 +82,7 @@ export default function IngresoPage() {
               key={key}
               className={`kiosk-key${key === 'OK' ? ' action' : ''}${key === 'C' ? ' action' : ''}`}
               onClick={() => pressKey(key)}
-              disabled={loading}
+              disabled={loading || (key !== 'OK' && key !== 'C' && key !== 'DEL' && numero.length >= MAX_DIGITOS)}
             >
               {key === 'OK' ? '✓' : key === 'C' ? '✕' : key}
             </button>

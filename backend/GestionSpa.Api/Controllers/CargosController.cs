@@ -35,15 +35,16 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPost]
     public async Task<ActionResult<CargoDto>> Create(CrearCargoDto dto)
     {
-        if (dto.SocioId == null && dto.ClienteId == null)
-            return BadRequest(new { mensaje = "Debe indicar un socio o un cliente" });
-
-        if (dto.SocioId != null && dto.ClienteId != null)
-            return BadRequest(new { mensaje = "No puede indicar socio y cliente a la vez" });
+        var errors = ValidationHelper.ValidateCargo(dto.ServicioId, dto.SocioId, dto.ClienteId, dto.Cantidad);
+        if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         var servicio = await db.Servicios.FindAsync(dto.ServicioId);
-        if (servicio == null) return NotFound(new { mensaje = "Servicio no encontrado" });
-        if (!servicio.Activo) return BadRequest(new { mensaje = "El servicio no está activo" });
+        if (servicio == null)
+            return BadRequest(new { mensaje = "Debés seleccionar un servicio válido", errores = new[] { "Debés seleccionar un servicio" } });
+        if (!servicio.Activo)
+            return BadRequest(new { mensaje = "El servicio no está activo" });
+        if (servicio.Precio <= 0)
+            return BadRequest(new { mensaje = "El servicio seleccionado no tiene un precio válido" });
 
         if (dto.ClienteId != null && servicio.SoloSocios)
             return BadRequest(new { mensaje = "Este servicio es exclusivo para socios" });
@@ -86,6 +87,9 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
     {
         var cargo = await db.Cargos.FindAsync(id);
         if (cargo == null) return NotFound();
+
+        var pagoErrors = ValidationHelper.ValidateMontoPago(dto.Monto);
+        if (pagoErrors.Count > 0) return ValidationHelper.ToBadRequest(pagoErrors);
 
         var pago = new Pago
         {

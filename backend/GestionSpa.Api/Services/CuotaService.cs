@@ -43,7 +43,9 @@ public class CuotaService(AppDbContext db)
             .Sum(c => c.Monto * c.Cantidad);
 
         var total = cuota.Total;
-        if (cuota.MontoPagado >= total)
+        if (total <= 0)
+            cuota.EstadoPago = EstadoPago.Pendiente;
+        else if (cuota.MontoPagado >= total)
             cuota.EstadoPago = EstadoPago.Pagado;
         else if (cuota.MontoPagado > 0)
             cuota.EstadoPago = EstadoPago.Parcial;

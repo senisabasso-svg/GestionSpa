@@ -7,7 +7,8 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ mensaje: res.statusText }));
-    throw new Error(err.mensaje || 'Error en la solicitud');
+    const msg = err.errores?.length ? err.errores.join('. ') : (err.mensaje || res.statusText);
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -32,6 +33,7 @@ export const api = {
     list: (buscar?: string) => request<import('../types').Cliente[]>(`/clientes${buscar ? '?buscar=' + buscar : ''}`),
     create: (data: unknown) => request<import('../types').Cliente>('/clientes', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: unknown) => request<import('../types').Cliente>(`/clientes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/clientes/${id}`, { method: 'DELETE' }),
   },
   servicios: {
     list: (activos?: boolean) => request<import('../types').Servicio[]>(`/servicios${activos ? '?activos=true' : ''}`),
