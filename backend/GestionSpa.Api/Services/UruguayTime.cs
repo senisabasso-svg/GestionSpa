@@ -11,6 +11,16 @@ public static class UruguayTime
 
     public static (int Mes, int Anio) MesAnioActual() => (Now.Month, Now.Year);
 
+    /// <summary>Inicio del día calendario en Uruguay, como UTC (para queries timestamptz).</summary>
+    public static DateTime InicioDiaUtc(DateTime? fechaLocal = null)
+    {
+        var local = (fechaLocal ?? Today).Date;
+        return TimeZoneInfo.ConvertTimeToUtc(
+            new DateTime(local.Year, local.Month, local.Day, 0, 0, 0, DateTimeKind.Unspecified), Tz);
+    }
+
+    public static DateTime FinDiaUtc(DateTime? fechaLocal = null) => InicioDiaUtc(fechaLocal).AddDays(1);
+
     public static DateTime InicioMesUtc(int mes, int anio) =>
         TimeZoneInfo.ConvertTimeToUtc(new DateTime(anio, mes, 1, 0, 0, 0, DateTimeKind.Unspecified), Tz);
 

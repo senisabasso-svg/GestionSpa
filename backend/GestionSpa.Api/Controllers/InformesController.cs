@@ -43,10 +43,10 @@ public class InformesController(AppDbContext db) : ControllerBase
             .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .SumAsync(c => c.Monto * c.Cantidad);
 
-        var hoyUtc = UruguayTime.Today;
-        var finHoy = hoyUtc.AddDays(1);
+        var inicioHoy = UruguayTime.InicioDiaUtc();
+        var finHoy = UruguayTime.FinDiaUtc();
         var ingresosHoy = await db.Ingresos
-            .CountAsync(i => i.FechaHora >= hoyUtc && i.FechaHora < finHoy
+            .CountAsync(i => i.FechaHora >= inicioHoy && i.FechaHora < finHoy
                 && i.Tipo == TipoIngreso.Entrada && i.AccesoPermitido);
 
         var sociosActivos = await db.Socios.CountAsync(s => s.Estado == EstadoSocio.Activo);
@@ -109,19 +109,20 @@ public class InformesController(AppDbContext db) : ControllerBase
     [HttpGet("ingresos-diarios")]
     public async Task<ActionResult<InformeIngresosDto>> GetIngresosDiarios([FromQuery] DateTime? fecha)
     {
-        var dia = (fecha ?? UruguayTime.Today).Date;
-        var fin = dia.AddDays(1);
+        var diaLocal = (fecha ?? UruguayTime.Today).Date;
+        var inicio = UruguayTime.InicioDiaUtc(diaLocal);
+        var fin = UruguayTime.FinDiaUtc(diaLocal);
 
         var ingresos = await db.Ingresos
             .Include(i => i.Socio)
-            .Where(i => i.FechaHora >= dia && i.FechaHora < fin)
+            .Where(i => i.FechaHora >= inicio && i.FechaHora < fin)
             .OrderByDescending(i => i.FechaHora)
             .ToListAsync();
 
         var entradas = ingresos.Where(i => i.Tipo == TipoIngreso.Entrada).ToList();
 
         return new InformeIngresosDto(
-            dia,
+            diaLocal,
             entradas.Count,
             entradas.Count(i => i.AccesoPermitido),
             entradas.Count(i => !i.AccesoPermitido),

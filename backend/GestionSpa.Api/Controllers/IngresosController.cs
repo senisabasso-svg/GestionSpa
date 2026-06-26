@@ -18,8 +18,8 @@ public class IngresosController(AppDbContext db, IngresoAccesoService accesoServ
 
         if (fecha.HasValue)
         {
-            var inicio = fecha.Value.Date;
-            var fin = inicio.AddDays(1);
+            var inicio = UruguayTime.InicioDiaUtc(fecha.Value.Date);
+            var fin = UruguayTime.FinDiaUtc(fecha.Value.Date);
             query = query.Where(i => i.FechaHora >= inicio && i.FechaHora < fin);
         }
 
