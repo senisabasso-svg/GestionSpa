@@ -55,10 +55,11 @@ export default function IngresoPage() {
       <Link to="/" className="kiosk-back-link">← Volver al panel</Link>
 
       <div className="kiosk-card">
-        <img src="/logo-spa.png" alt="SPA Thermal Daymán" className="kiosk-logo-img" />
+        <div className="kiosk-logo">♨️</div>
+        <div className="kiosk-title">SPA Thermal Daymán</div>
+        <div className="kiosk-subtitle">Termas del Daymán · Salto, Uruguay</div>
 
-        <p className="kiosk-subtitle">
-          Termas del Daymán · Salto, Uruguay<br />
+        <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
           Ingresá tu número de socio (4 dígitos)
         </p>
 
