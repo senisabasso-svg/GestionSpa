@@ -1,8 +1,10 @@
 namespace GestionSpa.Api.Models;
 
-public class CuotaMensual
+public class CuotaMensual : IEmisorEntity
 {
     public int Id { get; set; }
+    public int EmisorId { get; set; }
+    public Emisor Emisor { get; set; } = null!;
     public int SocioId { get; set; }
     public Socio Socio { get; set; } = null!;
     public int Mes { get; set; }

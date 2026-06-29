@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +10,13 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ServiciosController(AppDbContext db) : ControllerBase
+[Authorize]
+public class ServiciosController(AppDbContext db, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<ServicioDto>>> GetAll([FromQuery] bool? activos, [FromQuery] CategoriaServicio? categoria)
     {
-        var query = db.Servicios.AsQueryable();
+        var query = db.Servicios.ForTenant(tenant).AsQueryable();
 
         if (activos == true)
             query = query.Where(s => s.Activo);
@@ -28,7 +30,7 @@ public class ServiciosController(AppDbContext db) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ServicioDto>> GetById(int id)
     {
-        var servicio = await db.Servicios.FindAsync(id);
+        var servicio = await db.Servicios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == id);
         return servicio == null ? NotFound() : Map(servicio);
     }
 
@@ -40,6 +42,7 @@ public class ServiciosController(AppDbContext db) : ControllerBase
 
         var servicio = new Servicio
         {
+            EmisorId = tenant.RequireEmisorId(),
             Nombre = dto.Nombre.Trim(),
             Descripcion = dto.Descripcion,
             Categoria = dto.Categoria,
@@ -56,7 +59,7 @@ public class ServiciosController(AppDbContext db) : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ServicioDto>> Update(int id, CrearServicioDto dto)
     {
-        var servicio = await db.Servicios.FindAsync(id);
+        var servicio = await db.Servicios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == id);
         if (servicio == null) return NotFound();
 
         var errors = ValidationHelper.ValidateServicio(dto.Nombre, dto.Precio, dto.DuracionMinutos);
@@ -76,7 +79,7 @@ public class ServiciosController(AppDbContext db) : ControllerBase
     [HttpPatch("{id}/activo")]
     public async Task<ActionResult<ServicioDto>> ToggleActivo(int id)
     {
-        var servicio = await db.Servicios.FindAsync(id);
+        var servicio = await db.Servicios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == id);
         if (servicio == null) return NotFound();
         servicio.Activo = !servicio.Activo;
         await db.SaveChangesAsync();

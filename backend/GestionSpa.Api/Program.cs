@@ -1,6 +1,9 @@
+using System.Text;
 using GestionSpa.Api.Data;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 static string GetConnectionString(IConfiguration config)
 {
@@ -31,12 +34,34 @@ builder.Services.AddControllers()
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(GetConnectionString(builder.Configuration)));
 
+builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<CuotaService>();
 builder.Services.AddScoped<IngresoAccesoService>();
+builder.Services.AddSingleton<JwtTokenService>();
+
+var jwtService = new JwtTokenService(builder.Configuration);
+var signingKey = jwtService.GetSigningKey();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = "GestionSpa",
+            ValidAudience = "GestionSpa",
+            IssuerSigningKey = signingKey,
+            ClockSkew = TimeSpan.FromMinutes(2),
+        };
+    });
+builder.Services.AddAuthorization();
 
 static string[] GetCorsOrigins()
 {
@@ -92,7 +117,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (TenantException ex)
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsJsonAsync(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+    }
+});
+
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.Run();

@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +10,13 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ClientesController(AppDbContext db) : ControllerBase
+[Authorize]
+public class ClientesController(AppDbContext db, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<ClienteDto>>> GetAll([FromQuery] string? buscar)
     {
-        var clientes = await db.Clientes.OrderByDescending(c => c.FechaRegistro).ToListAsync();
+        var clientes = await db.Clientes.ForTenant(tenant).OrderByDescending(c => c.FechaRegistro).ToListAsync();
         var term = ValidationHelper.SanitizeSearchTerm(buscar);
         if (term != null)
             clientes = clientes.Where(c => ValidationHelper.MatchesSearch(term, c.Nombre, c.Apellido, c.Cedula)).ToList();
@@ -25,7 +27,7 @@ public class ClientesController(AppDbContext db) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ClienteDto>> GetById(int id)
     {
-        var cliente = await db.Clientes.FindAsync(id);
+        var cliente = await db.Clientes.ForTenant(tenant).FirstOrDefaultAsync(c => c.Id == id);
         return cliente == null ? NotFound() : Map(cliente);
     }
 
@@ -37,6 +39,7 @@ public class ClientesController(AppDbContext db) : ControllerBase
 
         var cliente = new Cliente
         {
+            EmisorId = tenant.RequireEmisorId(),
             Nombre = dto.Nombre.Trim(),
             Apellido = dto.Apellido.Trim(),
             Cedula = dto.Cedula?.Trim(),
@@ -53,7 +56,7 @@ public class ClientesController(AppDbContext db) : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ClienteDto>> Update(int id, CrearClienteDto dto)
     {
-        var cliente = await db.Clientes.FindAsync(id);
+        var cliente = await db.Clientes.ForTenant(tenant).FirstOrDefaultAsync(c => c.Id == id);
         if (cliente == null) return NotFound();
 
         var errors = ValidationHelper.ValidateCliente(dto.Nombre, dto.Apellido, dto.Email);
@@ -73,10 +76,10 @@ public class ClientesController(AppDbContext db) : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var cliente = await db.Clientes.FindAsync(id);
+        var cliente = await db.Clientes.ForTenant(tenant).FirstOrDefaultAsync(c => c.Id == id);
         if (cliente == null) return NotFound();
 
-        if (await db.Cargos.AnyAsync(c => c.ClienteId == id))
+        if (await db.Cargos.ForTenant(tenant).AnyAsync(c => c.ClienteId == id))
             return BadRequest(new { mensaje = "No se puede eliminar: el cliente tiene cargos registrados" });
 
         db.Clientes.Remove(cliente);

@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +10,13 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class FamiliasController(AppDbContext db) : ControllerBase
+[Authorize]
+public class FamiliasController(AppDbContext db, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<FamiliaDto>>> GetAll([FromQuery] string? buscar)
     {
-        var familias = await db.Familias
+        var familias = await db.Familias.ForTenant(tenant)
             .Include(f => f.Socios)
             .OrderBy(f => f.Nombre)
             .ToListAsync();
@@ -29,22 +31,24 @@ public class FamiliasController(AppDbContext db) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<FamiliaDto>> GetById(int id)
     {
-        var familia = await db.Familias.Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
+        var familia = await db.Familias.ForTenant(tenant).Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
         return familia == null ? NotFound() : Map(familia);
     }
 
     [HttpPost]
     public async Task<ActionResult<FamiliaDto>> Create(CrearFamiliaDto dto)
     {
+        var emisorId = tenant.RequireEmisorId();
         var errors = ValidationHelper.ValidateFamilia(dto.Nombre, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         var nombre = dto.Nombre.Trim();
-        if (await db.Familias.AnyAsync(f => f.Nombre == nombre))
+        if (await db.Familias.ForTenant(tenant).AnyAsync(f => f.Nombre == nombre))
             return BadRequest(new { mensaje = "Ya existe una familia con ese nombre", errores = new[] { "Ya existe una familia con ese nombre" } });
 
         var familia = new Familia
         {
+            EmisorId = emisorId,
             Nombre = nombre,
             CuotaMensual = dto.CuotaMensual,
             Observaciones = dto.Observaciones?.Trim()
@@ -58,14 +62,14 @@ public class FamiliasController(AppDbContext db) : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<FamiliaDto>> Update(int id, CrearFamiliaDto dto)
     {
-        var familia = await db.Familias.Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
+        var familia = await db.Familias.ForTenant(tenant).Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
         if (familia == null) return NotFound();
 
         var errors = ValidationHelper.ValidateFamilia(dto.Nombre, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         var nombre = dto.Nombre.Trim();
-        if (await db.Familias.AnyAsync(f => f.Nombre == nombre && f.Id != id))
+        if (await db.Familias.ForTenant(tenant).AnyAsync(f => f.Nombre == nombre && f.Id != id))
             return BadRequest(new { mensaje = "Ya existe otra familia con ese nombre", errores = new[] { "Ya existe otra familia con ese nombre" } });
 
         var cuotaAnterior = familia.CuotaMensual;
@@ -79,7 +83,7 @@ public class FamiliasController(AppDbContext db) : ControllerBase
             foreach (var socio in familia.Socios)
             {
                 socio.CuotaMensual = dto.CuotaMensual;
-                var cuotaMes = await db.CuotasMensuales
+                var cuotaMes = await db.CuotasMensuales.ForTenant(tenant)
                     .FirstOrDefaultAsync(c => c.SocioId == socio.Id && c.Mes == mes && c.Anio == anio);
                 if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
                 {
@@ -96,7 +100,7 @@ public class FamiliasController(AppDbContext db) : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var familia = await db.Familias.Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
+        var familia = await db.Familias.ForTenant(tenant).Include(f => f.Socios).FirstOrDefaultAsync(f => f.Id == id);
         if (familia == null) return NotFound();
 
         if (familia.Socios.Any(s => s.Estado != EstadoSocio.Inactivo))

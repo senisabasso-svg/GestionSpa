@@ -18,6 +18,7 @@ public class CuotaService(AppDbContext db)
 
         cuota = new CuotaMensual
         {
+            EmisorId = socio.EmisorId,
             SocioId = socioId,
             Mes = mes,
             Anio = anio,

@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,14 +10,15 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CargosController(AppDbContext db, CuotaService cuotaService) : ControllerBase
+[Authorize]
+public class CargosController(AppDbContext db, CuotaService cuotaService, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<CargoDto>>> GetAll(
         [FromQuery] int? socioId, [FromQuery] int? clienteId,
         [FromQuery] EstadoPago? estado, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)
     {
-        var query = db.Cargos
+        var query = db.Cargos.ForTenant(tenant)
             .Include(c => c.Servicio)
             .Include(c => c.Socio)
             .Include(c => c.Cliente)
@@ -36,10 +38,11 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPost]
     public async Task<ActionResult<CargoDto>> Create(CrearCargoDto dto)
     {
+        var emisorId = tenant.RequireEmisorId();
         var errors = ValidationHelper.ValidateCargo(dto.ServicioId, dto.SocioId, dto.ClienteId, dto.Cantidad);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
-        var servicio = await db.Servicios.FindAsync(dto.ServicioId);
+        var servicio = await db.Servicios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == dto.ServicioId);
         if (servicio == null)
             return BadRequest(new { mensaje = "Debés seleccionar un servicio válido", errores = new[] { "Debés seleccionar un servicio" } });
         if (!servicio.Activo)
@@ -52,15 +55,19 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
 
         if (dto.SocioId != null)
         {
-            var socio = await db.Socios.FindAsync(dto.SocioId);
+            var socio = await db.Socios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == dto.SocioId);
             if (socio == null)
                 return BadRequest(new { mensaje = "Socio no encontrado" });
             if (socio.Estado != EstadoSocio.Activo)
                 return BadRequest(new { mensaje = "El socio no está activo" });
         }
 
+        if (dto.ClienteId != null && !await db.Clientes.ForTenant(tenant).AnyAsync(c => c.Id == dto.ClienteId))
+            return BadRequest(new { mensaje = "Cliente no encontrado" });
+
         var cargo = new Cargo
         {
+            EmisorId = emisorId,
             ServicioId = dto.ServicioId,
             SocioId = dto.SocioId,
             ClienteId = dto.ClienteId,
@@ -95,7 +102,8 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPost("{id}/pagar")]
     public async Task<ActionResult<PagoDto>> PagarCargo(int id, RegistrarPagoDto dto)
     {
-        var cargo = await db.Cargos.FindAsync(id);
+        var emisorId = tenant.RequireEmisorId();
+        var cargo = await db.Cargos.ForTenant(tenant).FirstOrDefaultAsync(c => c.Id == id);
         if (cargo == null) return NotFound();
 
         if (cargo.EstadoPago == EstadoPago.Anulado)
@@ -111,7 +119,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
         if (pagoErrors.Count > 0) return ValidationHelper.ToBadRequest(pagoErrors);
 
         var montoTotal = cargo.Monto * cargo.Cantidad;
-        var yaPagado = await db.Pagos.Where(p => p.CargoId == id).SumAsync(p => p.Monto);
+        var yaPagado = await db.Pagos.ForTenant(tenant).Where(p => p.CargoId == id).SumAsync(p => p.Monto);
         var saldoPendiente = montoTotal - yaPagado;
 
         if (dto.Monto > saldoPendiente)
@@ -119,6 +127,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
 
         var pago = new Pago
         {
+            EmisorId = emisorId,
             CargoId = id,
             Monto = dto.Monto,
             MetodoPago = dto.MetodoPago,
@@ -142,7 +151,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPost("{id}/anular")]
     public async Task<ActionResult<CargoDto>> AnularCargo(int id, AnularCargoDto dto)
     {
-        var cargo = await db.Cargos
+        var cargo = await db.Cargos.ForTenant(tenant)
             .Include(c => c.Servicio)
             .Include(c => c.Socio)
             .Include(c => c.Cliente)
@@ -153,7 +162,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService) : Cont
         if (cargo.EstadoPago != EstadoPago.Pendiente)
             return BadRequest(new { mensaje = "Solo se pueden anular cargos pendientes" });
 
-        if (await db.Pagos.AnyAsync(p => p.CargoId == id))
+        if (await db.Pagos.ForTenant(tenant).AnyAsync(p => p.CargoId == id))
             return BadRequest(new { mensaje = "No se puede anular un cargo con pagos registrados" });
 
         var cuotaId = cargo.CuotaMensualId;

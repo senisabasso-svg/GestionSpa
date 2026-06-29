@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type { ResultadoIngreso } from '../types';
+import type { ResultadoIngreso, EmisorPublico } from '../types';
 
 const MAX_DIGITOS = 4;
 
 export default function IngresoPage() {
+  const [searchParams] = useSearchParams();
+  const emisorSlug = searchParams.get('emisor') || undefined;
+  const [emisor, setEmisor] = useState<EmisorPublico | null>(null);
   const [numero, setNumero] = useState('');
   const [resultado, setResultado] = useState<ResultadoIngreso | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -14,7 +17,17 @@ export default function IngresoPage() {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  useEffect(() => {
+    if (!emisorSlug) return;
+    api.emisores.publico(emisorSlug).then(setEmisor).catch(() => setEmisor(null));
+  }, [emisorSlug]);
+
   const validar = async (n: string) => {
+    if (!emisorSlug) {
+      setErrorMsg('Falta el parámetro ?emisor= en la URL');
+      setResultado(null);
+      return;
+    }
     if (!n.trim()) {
       setErrorMsg('Ingresá un número de socio');
       setResultado(null);
@@ -29,7 +42,7 @@ export default function IngresoPage() {
     setLoading(true);
     setResultado(null);
     try {
-      const res = await api.ingresos.validar(n.trim());
+      const res = await api.ingresos.validar(n.trim(), emisorSlug);
       setResultado(res);
       setTimeout(() => { setNumero(''); setResultado(null); inputRef.current?.focus(); }, 4000);
     } catch {
@@ -56,8 +69,8 @@ export default function IngresoPage() {
 
       <div className="kiosk-card">
         <div className="kiosk-logo">♨️</div>
-        <div className="kiosk-title">SPA Thermal Daymán</div>
-        <div className="kiosk-subtitle">Termas del Daymán · Salto, Uruguay</div>
+        <div className="kiosk-title">{emisor?.nombre || 'Control de Ingreso'}</div>
+        <div className="kiosk-subtitle">{emisor?.ciudad ? `${emisor.ciudad}, Uruguay` : 'Ingresá tu número de socio'}</div>
 
         <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
           Ingresá tu número de socio (4 dígitos)

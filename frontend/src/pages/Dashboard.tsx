@@ -4,8 +4,10 @@ import { api } from '../api/client';
 import type { InformeResumen } from '../types';
 import { formatUYU } from '../types';
 import { Users, DollarSign, AlertTriangle, DoorOpen } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
+  const { emisorNombre, emisorSlug } = useAuth();
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +26,7 @@ export default function Dashboard() {
     <div>
       <div className="page-header">
         <h2>Panel de Control</h2>
-        <p>SPA Thermal Daymán — Termas del Daymán, Salto</p>
+        <p>{emisorNombre || 'Panel de gestión'} — Resumen del emisor activo</p>
       </div>
 
       {error && (
@@ -72,7 +74,7 @@ export default function Dashboard() {
           cobranzas e ingresos al complejo termal del Daymán en Salto, Uruguay.
         </p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <Link to="/ingreso" className="btn btn-primary">Abrir Control de Ingreso</Link>
+          <Link to={emisorSlug ? `/ingreso?emisor=${emisorSlug}` : '/ingreso'} className="btn btn-primary">Abrir Control de Ingreso</Link>
           <Link to="/informes" className="btn btn-secondary">Ver Informes</Link>
         </div>
       </div>

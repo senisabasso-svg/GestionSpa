@@ -1,10 +1,25 @@
 import { API_URL } from '../types';
 
-async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+let authToken: string | null = null;
+let emisorId: number | null = null;
+
+export function setAuthToken(token: string | null) { authToken = token; }
+export function setEmisorId(id: number | null) { emisorId = id; }
+
+async function request<T>(endpoint: string, options?: RequestInit & { skipAuth?: boolean }): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (!options?.skipAuth && authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (emisorId) headers['X-Emisor-Id'] = String(emisorId);
+
   const res = await fetch(`${API_URL}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers: { ...headers, ...(options?.headers as Record<string, string>) },
   });
+  if (res.status === 401) {
+    localStorage.removeItem('gestionspa_auth');
+    localStorage.removeItem('gestionspa_emisor');
+    if (!endpoint.includes('/auth/login')) window.location.href = '/login';
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ mensaje: res.statusText }));
     const msg = err.errores?.length ? err.errores.join('. ') : (err.mensaje || res.statusText);
@@ -15,6 +30,25 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  auth: {
+    login: (email: string, password: string) =>
+      request<import('../types').LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        skipAuth: true,
+      }),
+    me: () => request<import('../types').LoginResponse>('/auth/me'),
+  },
+  emisores: {
+    list: () => request<import('../types').Emisor[]>('/emisores'),
+    get: (id: number) => request<import('../types').Emisor>(`/emisores/${id}`),
+    publico: (slug: string) =>
+      request<import('../types').EmisorPublico>(`/emisores/publico/${slug}`, { skipAuth: true }),
+    create: (data: unknown) => request<import('../types').Emisor>('/emisores', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: unknown) => request<import('../types').Emisor>(`/emisores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    toggleActivo: (id: number, activo: boolean) =>
+      request<import('../types').Emisor>(`/emisores/${id}/activo`, { method: 'PATCH', body: JSON.stringify(activo) }),
+  },
   socios: {
     list: (buscar?: string, estado?: string) => {
       const p = new URLSearchParams();
@@ -75,8 +109,18 @@ export const api = {
   },
   ingresos: {
     list: (fecha?: string) => request<import('../types').Ingreso[]>(`/ingresos${fecha ? '?fecha=' + fecha : ''}`),
-    validar: (numeroSocio: string) => request<import('../types').ResultadoIngreso>('/ingresos/validar', { method: 'POST', body: JSON.stringify({ numeroSocio }) }),
-    salida: (numeroSocio: string) => request<import('../types').Ingreso>('/ingresos/salida', { method: 'POST', body: JSON.stringify({ numeroSocio }) }),
+    validar: (numeroSocio: string, emisorSlug?: string) =>
+      request<import('../types').ResultadoIngreso>('/ingresos/validar', {
+        method: 'POST',
+        body: JSON.stringify({ numeroSocio, emisorSlug }),
+        skipAuth: true,
+      }),
+    salida: (numeroSocio: string, emisorSlug?: string) =>
+      request<import('../types').Ingreso>('/ingresos/salida', {
+        method: 'POST',
+        body: JSON.stringify({ numeroSocio, emisorSlug }),
+        skipAuth: true,
+      }),
   },
   informes: {
     resumen: (mes?: number, anio?: number) => {

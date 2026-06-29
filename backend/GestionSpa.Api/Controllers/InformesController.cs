@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,8 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class InformesController(AppDbContext db) : ControllerBase
+[Authorize]
+public class InformesController(AppDbContext db, ITenantContext tenant) : ControllerBase
 {
     [HttpGet("resumen")]
     public async Task<ActionResult<InformeResumenDto>> GetResumen([FromQuery] int? mes, [FromQuery] int? anio)
@@ -21,15 +23,15 @@ public class InformesController(AppDbContext db) : ControllerBase
         var inicioMes = UruguayTime.InicioMesUtc(m, a);
         var finMes = UruguayTime.FinMesUtc(m, a);
 
-        var pagosMes = await db.Pagos
+        var pagosMes = await db.Pagos.ForTenant(tenant)
             .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes && p.Monto > 0)
             .SumAsync(p => p.Monto);
 
-        var totalCobradoCuotas = await db.Pagos
+        var totalCobradoCuotas = await db.Pagos.ForTenant(tenant)
             .Where(p => p.Fecha >= inicioMes && p.Fecha < finMes && p.Monto > 0 && p.CuotaMensualId != null)
             .SumAsync(p => p.Monto);
 
-        var cuotasPendientes = await db.CuotasMensuales
+        var cuotasPendientes = await db.CuotasMensuales.ForTenant(tenant)
             .Include(c => c.Socio)
             .Where(c => c.Mes == m && c.Anio == a && c.EstadoPago != EstadoPago.Pagado
                 && c.Socio.Estado == EstadoSocio.Activo)
@@ -37,21 +39,21 @@ public class InformesController(AppDbContext db) : ControllerBase
 
         var totalPendiente = cuotasPendientes.Sum(c => c.Total - c.MontoPagado);
 
-        var cargosPendientes = await db.Cargos
+        var cargosPendientes = await db.Cargos.ForTenant(tenant)
             .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .CountAsync();
 
-        var totalCargosPendientes = await db.Cargos
+        var totalCargosPendientes = await db.Cargos.ForTenant(tenant)
             .Where(c => c.ClienteId != null && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
             .SumAsync(c => c.Monto * c.Cantidad);
 
         var inicioHoy = UruguayTime.InicioDiaUtc();
         var finHoy = UruguayTime.FinDiaUtc();
-        var ingresosHoy = await db.Ingresos
+        var ingresosHoy = await db.Ingresos.ForTenant(tenant)
             .CountAsync(i => i.FechaHora >= inicioHoy && i.FechaHora < finHoy
                 && i.Tipo == TipoIngreso.Entrada && i.AccesoPermitido);
 
-        var sociosActivos = await db.Socios.CountAsync(s => s.Estado == EstadoSocio.Activo);
+        var sociosActivos = await db.Socios.ForTenant(tenant).CountAsync(s => s.Estado == EstadoSocio.Activo);
 
         return new InformeResumenDto(
             pagosMes, totalPendiente + totalCargosPendientes, totalCobradoCuotas,
@@ -65,16 +67,16 @@ public class InformesController(AppDbContext db) : ControllerBase
         var m = mes ?? mesActual;
         var a = anio ?? anioActual;
 
-        var socios = await db.Socios
+        var socios = await db.Socios.ForTenant(tenant)
             .Where(s => s.Estado != EstadoSocio.Inactivo)
             .OrderBy(s => s.Apellido)
             .ToListAsync();
 
-        var cuotas = await db.CuotasMensuales
+        var cuotas = await db.CuotasMensuales.ForTenant(tenant)
             .Where(c => c.Mes == m && c.Anio == a)
             .ToDictionaryAsync(c => c.SocioId);
 
-        var cargosPendientes = await db.Cargos
+        var cargosPendientes = await db.Cargos.ForTenant(tenant)
             .Include(c => c.Servicio)
             .Where(c => c.SocioId != null && !c.SumarACuota
                 && c.EstadoPago != EstadoPago.Pagado && c.EstadoPago != EstadoPago.Anulado)
@@ -115,7 +117,7 @@ public class InformesController(AppDbContext db) : ControllerBase
         var inicio = UruguayTime.InicioDiaUtc(diaLocal);
         var fin = UruguayTime.FinDiaUtc(diaLocal);
 
-        var ingresos = await db.Ingresos
+        var ingresos = await db.Ingresos.ForTenant(tenant)
             .Include(i => i.Socio)
             .Where(i => i.FechaHora >= inicio && i.FechaHora < fin)
             .OrderByDescending(i => i.FechaHora)
@@ -138,7 +140,7 @@ public class InformesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<List<PagoDto>>> GetPagos(
         [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] MetodoPago? metodo)
     {
-        var query = db.Pagos.AsQueryable();
+        var query = db.Pagos.ForTenant(tenant).AsQueryable();
 
         if (desde.HasValue) query = query.Where(p => p.Fecha >= desde);
         if (hasta.HasValue) query = query.Where(p => p.Fecha <= hasta);
@@ -159,7 +161,7 @@ public class InformesController(AppDbContext db) : ControllerBase
         var inicio = UruguayTime.InicioMesUtc(m, a);
         var fin = UruguayTime.FinMesUtc(m, a);
 
-        var datos = await db.Cargos
+        var datos = await db.Cargos.ForTenant(tenant)
             .Include(c => c.Servicio)
             .Where(c => c.Fecha >= inicio && c.Fecha < fin && c.Cantidad > 0
                 && c.EstadoPago != EstadoPago.Anulado)

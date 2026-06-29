@@ -1,8 +1,10 @@
 namespace GestionSpa.Api.Models;
 
-public class Cargo
+public class Cargo : IEmisorEntity
 {
     public int Id { get; set; }
+    public int EmisorId { get; set; }
+    public Emisor Emisor { get; set; } = null!;
     public int ServicioId { get; set; }
     public Servicio Servicio { get; set; } = null!;
     public int? SocioId { get; set; }

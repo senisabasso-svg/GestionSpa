@@ -2,6 +2,7 @@ using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
 using GestionSpa.Api.Models;
 using GestionSpa.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,12 +10,13 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SociosController(AppDbContext db, CuotaService cuotaService) : ControllerBase
+[Authorize]
+public class SociosController(AppDbContext db, CuotaService cuotaService, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<SocioDto>>> GetAll([FromQuery] string? buscar, [FromQuery] EstadoSocio? estado)
     {
-        var query = db.Socios.Include(s => s.Familia).AsQueryable();
+        var query = db.Socios.ForTenant(tenant).Include(s => s.Familia).AsQueryable();
 
         if (estado.HasValue)
             query = query.Where(s => s.Estado == estado);
@@ -31,36 +33,37 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpGet("{id}")]
     public async Task<ActionResult<SocioDto>> GetById(int id)
     {
-        var socio = await db.Socios.Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
+        var socio = await db.Socios.ForTenant(tenant).Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
         return socio == null ? NotFound() : Map(socio);
     }
 
     [HttpGet("numero/{numero}")]
     public async Task<ActionResult<SocioDto>> GetByNumero(string numero)
     {
-        var socio = await db.Socios.Include(s => s.Familia).FirstOrDefaultAsync(s => s.NumeroSocio == numero);
+        var socio = await db.Socios.ForTenant(tenant).Include(s => s.Familia)
+            .FirstOrDefaultAsync(s => s.NumeroSocio == numero);
         return socio == null ? NotFound() : Map(socio);
     }
 
     [HttpPost]
     public async Task<ActionResult<SocioDto>> Create(CrearSocioDto dto)
     {
+        var emisorId = tenant.RequireEmisorId();
         var errors = ValidationHelper.ValidateSocio(
             dto.Nombre, dto.Apellido, dto.Cedula, dto.Telefono, dto.Email,
             dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
-        if (await db.Socios.AnyAsync(s => s.Cedula == dto.Cedula))
+        if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula))
             return BadRequest(new { mensaje = "Ya existe un socio con esa cédula", errores = new[] { "Ya existe un socio con esa cédula" } });
 
-        if (dto.FamiliaId.HasValue && !await db.Familias.AnyAsync(f => f.Id == dto.FamiliaId))
+        if (dto.FamiliaId.HasValue && !await db.Familias.ForTenant(tenant).AnyAsync(f => f.Id == dto.FamiliaId))
             return BadRequest(new { mensaje = "La familia seleccionada no existe", errores = new[] { "La familia seleccionada no existe" } });
-
-        var numeroSocio = await GenerarNumeroSocioAsync();
 
         var socio = new Socio
         {
-            NumeroSocio = numeroSocio,
+            EmisorId = emisorId,
+            NumeroSocio = await GenerarNumeroSocioAsync(emisorId),
             Nombre = dto.Nombre.Trim(),
             Apellido = dto.Apellido.Trim(),
             Cedula = dto.Cedula.Trim(),
@@ -76,7 +79,6 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
 
         db.Socios.Add(socio);
         await db.SaveChangesAsync();
-
         await db.Entry(socio).Reference(s => s.Familia).LoadAsync();
 
         var (mes, anio) = UruguayTime.MesAnioActual();
@@ -88,7 +90,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPut("{id}")]
     public async Task<ActionResult<SocioDto>> Update(int id, CrearSocioDto dto)
     {
-        var socio = await db.Socios.Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
+        var socio = await db.Socios.ForTenant(tenant).Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
         if (socio == null) return NotFound();
 
         var errors = ValidationHelper.ValidateSocio(
@@ -96,10 +98,10 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
             dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
-        if (await db.Socios.AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
+        if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
             return BadRequest(new { mensaje = "Ya existe otro socio con esa cédula", errores = new[] { "Ya existe otro socio con esa cédula" } });
 
-        if (dto.FamiliaId.HasValue && !await db.Familias.AnyAsync(f => f.Id == dto.FamiliaId))
+        if (dto.FamiliaId.HasValue && !await db.Familias.ForTenant(tenant).AnyAsync(f => f.Id == dto.FamiliaId))
             return BadRequest(new { mensaje = "La familia seleccionada no existe", errores = new[] { "La familia seleccionada no existe" } });
 
         socio.Nombre = dto.Nombre.Trim();
@@ -119,7 +121,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
         if (cuotaAnterior != dto.CuotaMensual)
         {
             var (mes, anio) = UruguayTime.MesAnioActual();
-            var cuotaMes = await db.CuotasMensuales
+            var cuotaMes = await db.CuotasMensuales.ForTenant(tenant)
                 .FirstOrDefaultAsync(c => c.SocioId == id && c.Mes == mes && c.Anio == anio);
 
             if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
@@ -137,7 +139,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpPatch("{id}/estado")]
     public async Task<ActionResult<SocioDto>> CambiarEstado(int id, [FromBody] EstadoSocio estado)
     {
-        var socio = await db.Socios.Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
+        var socio = await db.Socios.ForTenant(tenant).Include(s => s.Familia).FirstOrDefaultAsync(s => s.Id == id);
         if (socio == null) return NotFound();
         socio.Estado = estado;
         await db.SaveChangesAsync();
@@ -147,16 +149,16 @@ public class SociosController(AppDbContext db, CuotaService cuotaService) : Cont
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var socio = await db.Socios.FindAsync(id);
+        var socio = await db.Socios.ForTenant(tenant).FirstOrDefaultAsync(s => s.Id == id);
         if (socio == null) return NotFound();
         socio.Estado = EstadoSocio.Inactivo;
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    private async Task<string> GenerarNumeroSocioAsync()
+    private async Task<string> GenerarNumeroSocioAsync(int emisorId)
     {
-        var numeros = await db.Socios.Select(s => s.NumeroSocio).ToListAsync();
+        var numeros = await db.Socios.Where(s => s.EmisorId == emisorId).Select(s => s.NumeroSocio).ToListAsync();
         var max = numeros
             .Select(n => int.TryParse(n, out var v) ? v : 0)
             .DefaultIfEmpty(1000)

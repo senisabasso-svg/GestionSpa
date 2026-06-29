@@ -7,6 +7,7 @@ if (isProd && !rawApiUrl) {
 
 export const API_URL = rawApiUrl || 'http://localhost:5000/api';
 
+export type RolUsuario = 'SuperAdmin' | 'AdminEmisor' | 'Operador';
 export type EstadoSocio = 'Activo' | 'Suspendido' | 'Inactivo';
 export type EstadoPago = 'Pendiente' | 'Pagado' | 'Parcial' | 'Anulado';
 export type CategoriaServicio = 'Masajes' | 'Termal' | 'Facial' | 'Corporal' | 'Paquetes' | 'Otros';
@@ -39,6 +40,34 @@ export interface Familia {
   cuotaMensual: number;
   observaciones?: string;
   cantidadSocios: number;
+}
+
+export interface Emisor {
+  id: number;
+  nombre: string;
+  slug: string;
+  ciudad?: string;
+  departamento?: string;
+  activo: boolean;
+  fechaAlta: string;
+}
+
+export interface EmisorPublico {
+  id: number;
+  nombre: string;
+  slug: string;
+  ciudad?: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  usuarioId: number;
+  email: string;
+  nombre: string;
+  rol: RolUsuario;
+  emisorId: number | null;
+  emisorNombre: string | null;
+  emisorSlug: string | null;
 }
 
 export interface Cliente {

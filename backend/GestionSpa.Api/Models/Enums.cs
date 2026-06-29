@@ -39,3 +39,10 @@ public enum TipoIngreso
     Entrada,
     Salida
 }
+
+public enum RolUsuario
+{
+    SuperAdmin,
+    AdminEmisor,
+    Operador
+}

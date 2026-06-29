@@ -72,7 +72,29 @@ public record IngresoDto(
     int Id, int SocioId, string NumeroSocio, string SocioNombre,
     DateTime FechaHora, TipoIngreso Tipo, bool AccesoPermitido, string? MotivoRechazo);
 
-public record ValidarIngresoDto(string NumeroSocio);
+public record ValidarIngresoDto(string NumeroSocio, string? EmisorSlug);
+
+public record LoginDto(string Email, string Password);
+
+public record LoginResponseDto(
+    string Token, int UsuarioId, string Email, string Nombre,
+    RolUsuario Rol, int? EmisorId, string? EmisorNombre, string? EmisorSlug);
+
+public record EmisorDto(
+    int Id, string Nombre, string Slug, string? Ciudad, string? Departamento,
+    bool Activo, DateTime FechaAlta);
+
+public record EmisorPublicoDto(int Id, string Nombre, string Slug, string? Ciudad);
+
+public record CrearEmisorDto(
+    string Nombre, string Slug, string? Ciudad, string? Departamento);
+
+public record UsuarioDto(
+    int Id, string Email, string Nombre, RolUsuario Rol,
+    int? EmisorId, string? EmisorNombre, bool Activo);
+
+public record CrearUsuarioDto(
+    string Email, string Password, string Nombre, RolUsuario Rol, int? EmisorId);
 
 public record ResultadoIngresoDto(
     bool AccesoPermitido, string Mensaje, string? NombreCompleto,

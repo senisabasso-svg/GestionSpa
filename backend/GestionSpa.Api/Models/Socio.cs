@@ -1,8 +1,10 @@
 namespace GestionSpa.Api.Models;
 
-public class Socio
+public class Socio : IEmisorEntity
 {
     public int Id { get; set; }
+    public int EmisorId { get; set; }
+    public Emisor Emisor { get; set; } = null!;
     public string NumeroSocio { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public string Apellido { get; set; } = string.Empty;
