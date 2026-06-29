@@ -100,7 +100,7 @@ export default function InformesPage() {
               <div className="value">{resumen.sociosActivos}</div>
             </div>
             <div className="stat-card success">
-              <div className="label">Ingresos al spa hoy</div>
+              <div className="label">Ingresos hoy</div>
               <div className="value">{resumen.ingresosHoy}</div>
             </div>
           </div>

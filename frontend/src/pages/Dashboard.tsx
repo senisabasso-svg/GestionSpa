@@ -69,9 +69,8 @@ export default function Dashboard() {
       <div className="card">
         <h3 style={{ marginBottom: '1rem', color: 'var(--color-primary-dark)' }}>Bienvenido al sistema de gestión</h3>
         <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.7 }}>
-          Este sistema permite administrar socios, clientes ocasionales, servicios del spa
-          (masajes, tratamientos termales, fango facial, hidromasajes y más), cuotas mensuales,
-          cobranzas e ingresos al complejo termal del Daymán en Salto, Uruguay.
+          Administrá socios, clientes, servicios, cuotas mensuales, cobranzas y control de ingreso
+          desde un solo lugar. Cada empresa opera de forma independiente con sus propios datos.
         </p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link to={emisorSlug ? `/ingreso?emisor=${emisorSlug}` : '/ingreso'} className="btn btn-primary">Abrir Control de Ingreso</Link>

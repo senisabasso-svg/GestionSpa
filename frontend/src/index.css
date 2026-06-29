@@ -313,7 +313,7 @@ tr:hover td { background: rgba(26,107,92,0.03); }
   box-shadow: var(--shadow-lg);
 }
 
-.kiosk-logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.kiosk-logo { margin-bottom: 0.5rem; color: var(--color-primary); display: flex; justify-content: center; }
 .kiosk-title { font-size: 1.5rem; font-weight: 700; color: var(--color-primary-dark); }
 .kiosk-subtitle { color: var(--color-text-muted); margin-bottom: 2rem; font-size: 0.9rem; }
 

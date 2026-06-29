@@ -98,7 +98,7 @@ export default function EmisoresPage() {
     <div>
       <div className="page-header">
         <h2>Emisores</h2>
-        <p>Administrá los spas / gestiones independientes del sistema</p>
+        <p>Administrá las empresas que usan el sistema de forma independiente</p>
       </div>
 
       <div className="toolbar">
@@ -137,7 +137,7 @@ export default function EmisoresPage() {
             <h3>{editId ? 'Editar Emisor' : 'Nuevo Emisor'}</h3>
             {errors.length > 0 && <div className="alert alert-error"><ul style={{ margin: 0, paddingLeft: '1.2rem' }}>{errors.map((err, i) => <li key={i}>{err}</li>)}</ul></div>}
             <div className="form-group">
-              <label>Nombre del spa *</label>
+              <label>Nombre de la empresa *</label>
               <input
                 className="form-control"
                 value={form.nombre}
@@ -151,7 +151,7 @@ export default function EmisoresPage() {
             </div>
             <div className="form-group">
               <label>Slug (URL kiosk) *</label>
-              <input className="form-control" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value.toLowerCase() })} placeholder="spa-dayman" />
+              <input className="form-control" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value.toLowerCase() })} placeholder="mi-empresa" />
             </div>
             <div className="form-row">
               <div className="form-group">
@@ -177,7 +177,7 @@ export default function EmisoresPage() {
                     className="form-control"
                     value={form.adminEmail}
                     onChange={e => setForm({ ...form, adminEmail: e.target.value })}
-                    placeholder="admin@mi-spa.com"
+                    placeholder="admin@mi-empresa.com"
                     autoComplete="off"
                   />
                 </div>

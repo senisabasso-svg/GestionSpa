@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { APP_NAME } from '../config/branding';
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -27,8 +28,8 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card card">
-        <h2>GestionSpa</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Iniciá sesión para continuar</p>
+        <h2>{APP_NAME}</h2>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Accedé a tu panel de gestión</p>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={submit}>
           <div className="form-group">

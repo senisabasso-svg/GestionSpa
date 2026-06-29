@@ -5,6 +5,7 @@ import {
   BarChart3, DoorOpen, CreditCard, Menu, ChevronsLeft, Home, Building2, LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { APP_NAME } from '../config/branding';
 
 const MOBILE_QUERY = '(max-width: 768px)';
 
@@ -14,8 +15,8 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  const brandName = emisorNombre || 'GestionSpa';
-  const brandSub = isSuperAdmin && !activeEmisorId ? 'Seleccioná un emisor' : (emisorSlug ? `/${emisorSlug}` : 'Gestión de socios');
+  const brandName = emisorNombre || APP_NAME;
+  const brandSub = isSuperAdmin && !activeEmisorId ? 'Seleccioná un emisor' : (emisorSlug ? `/${emisorSlug}` : 'Panel de gestión');
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Panel' },

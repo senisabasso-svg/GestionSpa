@@ -4,6 +4,7 @@ import type { Socio, EstadoSocio, MetodoPago, Familia } from '../types';
 import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const hoy = () => fechaHoyLocal();
 
@@ -40,6 +41,7 @@ const toPayload = (form: SocioForm) => ({
 });
 
 export default function SociosPage() {
+  const { emisorNombre } = useAuth();
   const [socios, setSocios] = useState<Socio[]>([]);
   const [familias, setFamilias] = useState<Familia[]>([]);
   const [buscar, setBuscar] = useState('');
@@ -111,7 +113,7 @@ export default function SociosPage() {
     <div>
       <div className="page-header">
         <h2>Gestión de Socios</h2>
-        <p>Administrá los socios del SPA Thermal Daymán</p>
+        <p>{emisorNombre ? `Socios de ${emisorNombre}` : 'Administrá los socios de tu empresa'}</p>
       </div>
 
       <div className="toolbar">

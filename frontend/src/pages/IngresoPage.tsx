@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Building2 } from 'lucide-react';
 import { api } from '../api/client';
 import type { ResultadoIngreso, EmisorPublico } from '../types';
 
@@ -68,7 +69,7 @@ export default function IngresoPage() {
       <Link to="/" className="kiosk-back-link">← Volver al panel</Link>
 
       <div className="kiosk-card">
-        <div className="kiosk-logo">♨️</div>
+        <div className="kiosk-logo" aria-hidden><Building2 size={48} strokeWidth={1.5} /></div>
         <div className="kiosk-title">{emisor?.nombre || 'Control de Ingreso'}</div>
         <div className="kiosk-subtitle">{emisor?.ciudad ? `${emisor.ciudad}, Uruguay` : 'Ingresá tu número de socio'}</div>
 
@@ -129,10 +130,6 @@ export default function IngresoPage() {
           </div>
         )}
       </div>
-
-      <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: '2rem', fontSize: '0.8rem' }}>
-        Acceso a 8 piscinas termales · Sauna · Gimnasio · Hidromasajes
-      </p>
     </div>
   );
 }

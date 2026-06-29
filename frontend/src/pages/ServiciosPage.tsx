@@ -52,8 +52,8 @@ export default function ServiciosPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Servicios del Spa</h2>
-        <p>Masajes, tratamientos termales, fango facial, hidromasajes y más</p>
+        <h2>Servicios</h2>
+        <p>Catálogo de servicios o productos que ofrecés a socios y clientes</p>
       </div>
 
       <div className="toolbar">
