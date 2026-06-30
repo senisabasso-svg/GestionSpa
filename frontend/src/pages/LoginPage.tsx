@@ -28,8 +28,15 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card card">
-        <h2>{APP_NAME}</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Accedé a tu panel de gestión</p>
+        <div className="login-brand">
+          <video className="login-video" autoPlay loop muted playsInline>
+            <source src="/assets/login-video.mp4" type="video/mp4" />
+          </video>
+          <h2 className="login-title">{APP_NAME}</h2>
+        </div>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem', textAlign: 'center' }}>
+          Accedé a tu panel de gestión
+        </p>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={submit}>
           <div className="form-group">
