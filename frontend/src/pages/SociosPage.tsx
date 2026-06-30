@@ -24,12 +24,13 @@ interface SocioForm {
   fechaVencimiento: string;
   cuotaMensual: number;
   familiaId: string;
+  activo: boolean;
 }
 
 const emptyForm = (): SocioForm => ({
   nombre: '', apellido: '', cedula: '', telefono: '', email: '',
   medioPago: 'Efectivo', fechaAlta: hoy(), fechaVencimiento: '', cuotaMensual: 3500,
-  familiaId: '',
+  familiaId: '', activo: true,
 });
 
 const toPayload = (form: SocioForm) => ({
@@ -38,6 +39,7 @@ const toPayload = (form: SocioForm) => ({
   medioPago: form.medioPago, fechaAlta: form.fechaAlta,
   fechaVencimiento: form.fechaVencimiento || null, cuotaMensual: form.cuotaMensual,
   familiaId: form.familiaId ? Number(form.familiaId) : null,
+  estado: form.activo ? 'Activo' as EstadoSocio : 'Inactivo' as EstadoSocio,
 });
 
 export default function SociosPage() {
@@ -84,6 +86,7 @@ export default function SociosPage() {
       fechaVencimiento: s.fechaVencimiento?.split('T')[0] || '',
       cuotaMensual: s.cuotaMensual,
       familiaId: s.familiaId ? String(s.familiaId) : '',
+      activo: s.estado === 'Activo',
     });
     setErrors([]); setModal(true);
   };
@@ -149,7 +152,7 @@ export default function SociosPage() {
                   {s.estado === 'Activo' && (
                     <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => setConfirmSuspend(s)}>Suspender</button>
                   )}
-                  {s.estado === 'Suspendido' && (
+                  {(s.estado === 'Suspendido' || s.estado === 'Inactivo') && (
                     <button className="btn btn-sm btn-success" style={{ marginLeft: 4 }} onClick={() => cambiarEstado(s.id, 'Activo')}>Activar</button>
                   )}
                 </td>
@@ -224,6 +227,19 @@ export default function SociosPage() {
                 <label>Fecha de vencimiento</label>
                 <input className="form-control" type="date" min={form.fechaAlta || undefined} value={form.fechaVencimiento} onChange={e => setForm({ ...form, fechaVencimiento: e.target.value })} />
               </div>
+            </div>
+            <div className="form-group" style={{ marginTop: '0.25rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={form.activo}
+                  onChange={e => setForm({ ...form, activo: e.target.checked })}
+                />
+                Socio activo
+              </label>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                Desmarcá para dar de alta al socio como inactivo (sin cuota ni acceso al ingreso).
+              </p>
             </div>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setModal(false)}>Cancelar</button>

@@ -13,7 +13,8 @@ public record CrearSocioDto(
     string Nombre, string Apellido, string Cedula,
     string? Telefono, string? Email,
     DateTime FechaAlta, DateTime? FechaVencimiento,
-    MetodoPago MedioPago, decimal CuotaMensual, int? FamiliaId);
+    MetodoPago MedioPago, decimal CuotaMensual, int? FamiliaId,
+    EstadoSocio Estado = EstadoSocio.Activo);
 
 public record FamiliaDto(
     int Id, string Nombre, decimal CuotaMensual, string? Observaciones, int CantidadSocios);

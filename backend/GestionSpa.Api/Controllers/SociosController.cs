@@ -74,6 +74,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
             MedioPago = dto.MedioPago,
             CuotaMensual = dto.CuotaMensual,
             FamiliaId = dto.FamiliaId,
+            Estado = dto.Estado,
             Ciudad = "Salto"
         };
 
@@ -81,8 +82,11 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         await db.SaveChangesAsync();
         await db.Entry(socio).Reference(s => s.Familia).LoadAsync();
 
-        var (mes, anio) = UruguayTime.MesAnioActual();
-        await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mes, anio);
+        if (socio.Estado == EstadoSocio.Activo)
+        {
+            var (mes, anio) = UruguayTime.MesAnioActual();
+            await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mes, anio);
+        }
 
         return CreatedAtAction(nameof(GetById), new { id = socio.Id }, Map(socio));
     }
@@ -115,6 +119,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         socio.MedioPago = dto.MedioPago;
         socio.CuotaMensual = dto.CuotaMensual;
         socio.FamiliaId = dto.FamiliaId;
+        socio.Estado = dto.Estado;
 
         await db.SaveChangesAsync();
 
