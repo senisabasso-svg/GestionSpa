@@ -2,6 +2,7 @@ export const LIMITS = {
   nombre: 50,
   apellido: 50,
   cedula: 20,
+  documentoOtro: 50,
   telefono: 20,
   email: 100,
   notas: 500,
@@ -18,6 +19,7 @@ export function validateSocio(form: {
   nombre: string;
   apellido: string;
   cedula: string;
+  tipoIdentificacion: 'Cedula' | 'Otro';
   email: string;
   fechaAlta: string;
   fechaVencimiento: string;
@@ -28,8 +30,13 @@ export function validateSocio(form: {
   else if (form.nombre.length > LIMITS.nombre) errors.push(`El nombre no puede superar ${LIMITS.nombre} caracteres`);
   if (!form.apellido.trim()) errors.push('El apellido es obligatorio');
   else if (form.apellido.length > LIMITS.apellido) errors.push(`El apellido no puede superar ${LIMITS.apellido} caracteres`);
-  if (!form.cedula.trim()) errors.push('La cédula es obligatoria');
-  else if (!cedulaUyRegex.test(form.cedula.trim())) errors.push('La cédula debe tener el formato uruguayo X.XXX.XXX-X');
+  if (!form.cedula.trim()) {
+    errors.push(form.tipoIdentificacion === 'Cedula' ? 'La cédula es obligatoria' : 'La identificación es obligatoria');
+  } else if (form.tipoIdentificacion === 'Cedula') {
+    if (!cedulaUyRegex.test(form.cedula.trim())) errors.push('La cédula debe tener el formato uruguayo X.XXX.XXX-X');
+  } else if (form.cedula.trim().length > LIMITS.documentoOtro) {
+    errors.push(`La identificación no puede superar ${LIMITS.documentoOtro} caracteres`);
+  }
   if (!form.fechaAlta) errors.push('La fecha de alta es obligatoria');
   if (form.cuotaMensual <= 0) errors.push('La cuota mensual debe ser mayor a 0');
   if (form.email && !isValidEmail(form.email)) errors.push('El formato del email no es válido');

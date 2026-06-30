@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { Socio, EstadoSocio, MetodoPago, Familia } from '../types';
+import type { Socio, EstadoSocio, MetodoPago, Familia, TipoIdentificacionSocio } from '../types';
 import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2 } from 'lucide-react';
@@ -17,6 +17,7 @@ interface SocioForm {
   nombre: string;
   apellido: string;
   cedula: string;
+  tipoIdentificacion: TipoIdentificacionSocio;
   telefono: string;
   email: string;
   medioPago: MetodoPago;
@@ -28,13 +29,14 @@ interface SocioForm {
 }
 
 const emptyForm = (): SocioForm => ({
-  nombre: '', apellido: '', cedula: '', telefono: '', email: '',
+  nombre: '', apellido: '', cedula: '', tipoIdentificacion: 'Cedula', telefono: '', email: '',
   medioPago: 'Efectivo', fechaAlta: hoy(), fechaVencimiento: '', cuotaMensual: 3500,
   familiaId: '', activo: true,
 });
 
 const toPayload = (form: SocioForm) => ({
   nombre: form.nombre.trim(), apellido: form.apellido.trim(), cedula: form.cedula.trim(),
+  tipoIdentificacion: form.tipoIdentificacion,
   telefono: form.telefono.trim() || null, email: form.email.trim() || null,
   medioPago: form.medioPago, fechaAlta: form.fechaAlta,
   fechaVencimiento: form.fechaVencimiento || null, cuotaMensual: form.cuotaMensual,
@@ -81,6 +83,7 @@ export default function SociosPage() {
     setEditId(s.id); setEditNumero(s.numeroSocio);
     setForm({
       nombre: s.nombre, apellido: s.apellido, cedula: s.cedula,
+      tipoIdentificacion: s.tipoIdentificacion ?? 'Cedula',
       telefono: s.telefono || '', email: s.email || '', medioPago: s.medioPago,
       fechaAlta: s.fechaAlta.split('T')[0],
       fechaVencimiento: s.fechaVencimiento?.split('T')[0] || '',
@@ -121,7 +124,7 @@ export default function SociosPage() {
 
       <div className="toolbar">
         <div className="search">
-          <input className="form-control" placeholder="Buscar por nombre, cédula o número..." value={buscar} onChange={e => setBuscar(e.target.value)} maxLength={100} />
+          <input className="form-control" placeholder="Buscar por nombre, documento o número..." value={buscar} onChange={e => setBuscar(e.target.value)} maxLength={100} />
         </div>
         <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Socio</button>
       </div>
@@ -130,7 +133,7 @@ export default function SociosPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th><th>Nombre</th><th>Familia</th><th>Cédula</th><th>Teléfono</th>
+              <th>Nº Socio</th><th>Nombre</th><th>Familia</th><th>Documento</th><th>Teléfono</th>
               <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th className="col-vencimiento">Vencimiento</th><th className="col-estado">Estado</th><th>Acciones</th>
             </tr>
           </thead>
@@ -140,7 +143,12 @@ export default function SociosPage() {
                 <td><strong>{s.numeroSocio}</strong></td>
                 <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
                 <td>{s.familiaNombre || '—'}</td>
-                <td>{s.cedula}</td>
+                <td>
+                  {s.cedula}
+                  {s.tipoIdentificacion === 'Otro' && (
+                    <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: '0.7rem' }}>Otro</span>
+                  )}
+                </td>
                 <td>{s.telefono || '—'}</td>
                 <td>{labelMetodoPago(s.medioPago)}</td>
                 <td>{formatUYU(s.cuotaMensual)}</td>
@@ -185,13 +193,30 @@ export default function SociosPage() {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Cédula de Identidad *</label>
-                <input className="form-control" maxLength={LIMITS.cedula} placeholder="1.234.567-8" value={form.cedula} onChange={e => setForm({ ...form, cedula: e.target.value })} />
+                <label>Tipo de identificación *</label>
+                <select
+                  className="form-control"
+                  value={form.tipoIdentificacion}
+                  onChange={e => setForm({ ...form, tipoIdentificacion: e.target.value as TipoIdentificacionSocio, cedula: '' })}
+                >
+                  <option value="Cedula">Cédula</option>
+                  <option value="Otro">Otro</option>
+                </select>
               </div>
               <div className="form-group">
-                <label>Teléfono</label>
-                <input className="form-control" maxLength={LIMITS.telefono} placeholder="099 123 456" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} />
+                <label>{form.tipoIdentificacion === 'Cedula' ? 'Cédula de Identidad *' : 'Identificación (otro) *'}</label>
+                <input
+                  className="form-control"
+                  maxLength={form.tipoIdentificacion === 'Cedula' ? LIMITS.cedula : LIMITS.documentoOtro}
+                  placeholder={form.tipoIdentificacion === 'Cedula' ? '1.234.567-8' : 'Pasaporte, DNI, etc.'}
+                  value={form.cedula}
+                  onChange={e => setForm({ ...form, cedula: e.target.value })}
+                />
               </div>
+            </div>
+            <div className="form-group">
+              <label>Teléfono</label>
+              <input className="form-control" maxLength={LIMITS.telefono} placeholder="099 123 456" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} />
             </div>
             <div className="form-group">
               <label>Email</label>

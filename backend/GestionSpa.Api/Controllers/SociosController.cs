@@ -50,12 +50,13 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
     {
         var emisorId = tenant.RequireEmisorId();
         var errors = ValidationHelper.ValidateSocio(
-            dto.Nombre, dto.Apellido, dto.Cedula, dto.Telefono, dto.Email,
+            dto.Nombre, dto.Apellido, dto.Cedula, dto.TipoIdentificacion,
+            dto.Telefono, dto.Email,
             dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula))
-            return BadRequest(new { mensaje = "Ya existe un socio con esa cédula", errores = new[] { "Ya existe un socio con esa cédula" } });
+            return BadRequest(new { mensaje = "Ya existe un socio con ese documento", errores = new[] { "Ya existe un socio con ese documento" } });
 
         if (dto.FamiliaId.HasValue && !await db.Familias.ForTenant(tenant).AnyAsync(f => f.Id == dto.FamiliaId))
             return BadRequest(new { mensaje = "La familia seleccionada no existe", errores = new[] { "La familia seleccionada no existe" } });
@@ -67,6 +68,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
             Nombre = dto.Nombre.Trim(),
             Apellido = dto.Apellido.Trim(),
             Cedula = dto.Cedula.Trim(),
+            TipoIdentificacion = dto.TipoIdentificacion,
             Telefono = dto.Telefono?.Trim(),
             Email = dto.Email?.Trim(),
             FechaAlta = dto.FechaAlta.ToUniversalTime(),
@@ -98,12 +100,13 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         if (socio == null) return NotFound();
 
         var errors = ValidationHelper.ValidateSocio(
-            dto.Nombre, dto.Apellido, dto.Cedula, dto.Telefono, dto.Email,
+            dto.Nombre, dto.Apellido, dto.Cedula, dto.TipoIdentificacion,
+            dto.Telefono, dto.Email,
             dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
-            return BadRequest(new { mensaje = "Ya existe otro socio con esa cédula", errores = new[] { "Ya existe otro socio con esa cédula" } });
+            return BadRequest(new { mensaje = "Ya existe otro socio con ese documento", errores = new[] { "Ya existe otro socio con ese documento" } });
 
         if (dto.FamiliaId.HasValue && !await db.Familias.ForTenant(tenant).AnyAsync(f => f.Id == dto.FamiliaId))
             return BadRequest(new { mensaje = "La familia seleccionada no existe", errores = new[] { "La familia seleccionada no existe" } });
@@ -111,6 +114,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         socio.Nombre = dto.Nombre.Trim();
         socio.Apellido = dto.Apellido.Trim();
         socio.Cedula = dto.Cedula.Trim();
+        socio.TipoIdentificacion = dto.TipoIdentificacion;
         socio.Telefono = dto.Telefono?.Trim();
         socio.Email = dto.Email?.Trim();
         socio.FechaAlta = dto.FechaAlta.ToUniversalTime();
@@ -172,7 +176,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
     }
 
     private static SocioDto Map(Socio s) => new(
-        s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula,
+        s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.TipoIdentificacion,
         s.Telefono, s.Email, s.Direccion, s.Ciudad,
         s.FechaAlta, s.FechaVencimiento, s.MedioPago,
         s.CuotaMensual, s.Estado, s.Observaciones,

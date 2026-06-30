@@ -9,6 +9,7 @@ export const API_URL = rawApiUrl || 'http://localhost:5000/api';
 
 export type RolUsuario = 'SuperAdmin' | 'AdminEmisor' | 'Operador';
 export type EstadoSocio = 'Activo' | 'Suspendido' | 'Inactivo';
+export type TipoIdentificacionSocio = 'Cedula' | 'Otro';
 export type EstadoPago = 'Pendiente' | 'Pagado' | 'Parcial' | 'Anulado';
 export type CategoriaServicio = 'Masajes' | 'Termal' | 'Facial' | 'Corporal' | 'Paquetes' | 'Otros';
 export type MetodoPago = 'Efectivo' | 'TarjetaDebito' | 'TarjetaCredito' | 'Transferencia' | 'MercadoPago';
@@ -20,6 +21,7 @@ export interface Socio {
   nombre: string;
   apellido: string;
   cedula: string;
+  tipoIdentificacion: TipoIdentificacionSocio;
   telefono?: string;
   email?: string;
   direccion?: string;

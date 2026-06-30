@@ -4,6 +4,7 @@ namespace GestionSpa.Api.DTOs;
 
 public record SocioDto(
     int Id, string NumeroSocio, string Nombre, string Apellido, string Cedula,
+    TipoIdentificacionSocio TipoIdentificacion,
     string? Telefono, string? Email, string? Direccion, string? Ciudad,
     DateTime FechaAlta, DateTime? FechaVencimiento, MetodoPago MedioPago,
     decimal CuotaMensual, EstadoSocio Estado, string? Observaciones,
@@ -11,6 +12,7 @@ public record SocioDto(
 
 public record CrearSocioDto(
     string Nombre, string Apellido, string Cedula,
+    TipoIdentificacionSocio TipoIdentificacion,
     string? Telefono, string? Email,
     DateTime FechaAlta, DateTime? FechaVencimiento,
     MetodoPago MedioPago, decimal CuotaMensual, int? FamiliaId,

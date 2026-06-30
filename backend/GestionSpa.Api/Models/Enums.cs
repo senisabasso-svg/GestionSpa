@@ -7,6 +7,12 @@ public enum EstadoSocio
     Inactivo
 }
 
+public enum TipoIdentificacionSocio
+{
+    Cedula,
+    Otro
+}
+
 public enum EstadoPago
 {
     Pendiente,

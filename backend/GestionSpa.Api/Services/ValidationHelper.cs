@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Text;
 using System.Text.RegularExpressions;
+using GestionSpa.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestionSpa.Api.Services;
@@ -11,6 +12,7 @@ public static class ValidationHelper
     public const int MaxNombre = 50;
     public const int MaxApellido = 50;
     public const int MaxCedula = 20;
+    public const int MaxDocumentoOtro = 50;
     public const int MaxTelefono = 20;
     public const int MaxEmail = 100;
     public const int MaxNotas = 500;
@@ -21,6 +23,7 @@ public static class ValidationHelper
 
     public static List<string> ValidateSocio(
         string nombre, string apellido, string cedula,
+        TipoIdentificacionSocio tipoIdentificacion,
         string? telefono, string? email,
         DateTime fechaAlta, DateTime? fechaVencimiento,
         decimal cuotaMensual)
@@ -42,11 +45,21 @@ public static class ValidationHelper
             errors.Add("El apellido contiene caracteres no válidos");
 
         if (string.IsNullOrWhiteSpace(cedula))
-            errors.Add("La cédula es obligatoria");
-        else if (cedula.Length > MaxCedula)
-            errors.Add($"La cédula no puede superar {MaxCedula} caracteres");
-        else if (!CedulaUyRegex.IsMatch(cedula.Trim()))
-            errors.Add("La cédula debe tener el formato uruguayo X.XXX.XXX-X");
+            errors.Add(tipoIdentificacion == TipoIdentificacionSocio.Cedula
+                ? "La cédula es obligatoria"
+                : "La identificación es obligatoria");
+        else if (tipoIdentificacion == TipoIdentificacionSocio.Cedula)
+        {
+            if (cedula.Length > MaxCedula)
+                errors.Add($"La cédula no puede superar {MaxCedula} caracteres");
+            else if (!CedulaUyRegex.IsMatch(cedula.Trim()))
+                errors.Add("La cédula debe tener el formato uruguayo X.XXX.XXX-X");
+        }
+        else
+        {
+            if (cedula.Trim().Length > MaxDocumentoOtro)
+                errors.Add($"La identificación no puede superar {MaxDocumentoOtro} caracteres");
+        }
 
         if (!string.IsNullOrWhiteSpace(telefono) && telefono.Length > MaxTelefono)
             errors.Add($"El teléfono no puede superar {MaxTelefono} caracteres");
