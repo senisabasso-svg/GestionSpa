@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { InformeResumen, InformeCobranza, Ingreso, EstadoPago } from '../types';
-import { MESES, formatUYU, formatHora } from '../types';
+import type { InformeResumen, InformeCobranza, InformeSociosActivos, Ingreso, EstadoPago } from '../types';
+import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago } from '../types';
+import { Download } from 'lucide-react';
 
 const pagoBadge = (estado: EstadoPago | null | undefined, sinCuota?: boolean) => {
   if (sinCuota) return <span className="badge badge-neutral">Sin cuota</span>;
@@ -13,7 +14,7 @@ const pagoBadge = (estado: EstadoPago | null | undefined, sinCuota?: boolean) =>
 };
 
 export default function InformesPage() {
-  const [tab, setTab] = useState<'resumen' | 'cobranza' | 'ingresos' | 'servicios'>('resumen');
+  const [tab, setTab] = useState<'resumen' | 'cobranza' | 'ingresos' | 'servicios' | 'sociosActivos'>('resumen');
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
@@ -22,6 +23,8 @@ export default function InformesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [serviciosTop, setServiciosTop] = useState<{ nombre: string; cantidad: number; total: number }[]>([]);
+  const [sociosActivos, setSociosActivos] = useState<InformeSociosActivos | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [fechaIngresos, setFechaIngresos] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
@@ -34,6 +37,7 @@ export default function InformesPage() {
         if (tab === 'cobranza') setCobranza(await api.informes.cobranza(mes, anio));
         if (tab === 'ingresos') setIngresos(await api.informes.ingresosDiarios(fechaIngresos));
         if (tab === 'servicios') setServiciosTop(await api.informes.serviciosMasVendidos(mes, anio));
+        if (tab === 'sociosActivos') setSociosActivos(await api.informes.sociosActivos(mes, anio));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar informes');
       } finally {
@@ -44,11 +48,22 @@ export default function InformesPage() {
     load();
   }, [tab, mes, anio, fechaIngresos]);
 
+  const exportarSociosActivos = async () => {
+    setExporting(true);
+    try {
+      await api.informes.exportSociosActivos(mes, anio);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al exportar');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>Informes y Control de Cobranza</h2>
-        <p>Seguimiento de pagos, deudas e ingresos al complejo</p>
+        <p>Seguimiento de pagos, deudas, ingresos y socios activos</p>
       </div>
 
       <div className="tabs">
@@ -56,6 +71,7 @@ export default function InformesPage() {
         <button className={`tab${tab === 'cobranza' ? ' active' : ''}`} onClick={() => setTab('cobranza')}>Cobranza</button>
         <button className={`tab${tab === 'ingresos' ? ' active' : ''}`} onClick={() => setTab('ingresos')}>Ingresos diarios</button>
         <button className={`tab${tab === 'servicios' ? ' active' : ''}`} onClick={() => setTab('servicios')}>Servicios más vendidos</button>
+        <button className={`tab${tab === 'sociosActivos' ? ' active' : ''}`} onClick={() => setTab('sociosActivos')}>Socios activos</button>
       </div>
 
       {tab !== 'ingresos' && (
@@ -66,6 +82,11 @@ export default function InformesPage() {
           <select className="form-control" style={{ width: 100 }} value={anio} onChange={e => setAnio(Number(e.target.value))}>
             {[anio - 1, anio, anio + 1].map(a => <option key={a} value={a}>{a}</option>)}
           </select>
+          {tab === 'sociosActivos' && (
+            <button className="btn btn-secondary" onClick={exportarSociosActivos} disabled={exporting}>
+              <Download size={16} /> {exporting ? 'Exportando...' : 'Exportar CSV'}
+            </button>
+          )}
         </div>
       )}
 
@@ -209,6 +230,74 @@ export default function InformesPage() {
           </table>
           {serviciosTop.length === 0 && <div className="empty-state">Sin datos para este período</div>}
         </div>
+      )}
+
+      {!loading && !error && tab === 'sociosActivos' && sociosActivos && (
+        <>
+          <div className="card-grid">
+            <div className="stat-card">
+              <div className="label">Total activos</div>
+              <div className="value">{sociosActivos.resumen.totalActivos}</div>
+            </div>
+            <div className="stat-card success">
+              <div className="label">Cuota pagada ({MESES[mes - 1]})</div>
+              <div className="value">{sociosActivos.resumen.conCuotaPagada}</div>
+            </div>
+            <div className="stat-card warning">
+              <div className="label">Cuota pendiente</div>
+              <div className="value">{sociosActivos.resumen.conCuotaPendiente}</div>
+            </div>
+            <div className="stat-card danger">
+              <div className="label">Sin cuota del mes</div>
+              <div className="value">{sociosActivos.resumen.sinCuotaMes}</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">Con familia</div>
+              <div className="value">{sociosActivos.resumen.conFamilia}</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">Sin familia</div>
+              <div className="value">{sociosActivos.resumen.sinFamilia}</div>
+            </div>
+            <div className="stat-card success">
+              <div className="label">Suma cuotas mensuales</div>
+              <div className="value" style={{ fontSize: '1.35rem' }}>{formatUYU(sociosActivos.resumen.totalCuotasMensuales)}</div>
+            </div>
+          </div>
+          <div className="card table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nº</th><th>Nombre</th><th>Documento</th><th>Familia</th><th>Cuota</th>
+                  <th>Medio pago</th><th>Alta</th><th>Estado cuota</th><th>Saldo mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sociosActivos.socios.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.numeroSocio}</strong></td>
+                    <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                    <td>
+                      {s.cedula}
+                      {s.tipoIdentificacion === 'Otro' && (
+                        <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: '0.7rem' }}>Otro</span>
+                      )}
+                    </td>
+                    <td>{s.familiaNombre || '—'}</td>
+                    <td>{formatUYU(s.cuotaMensual)}</td>
+                    <td>{labelMetodoPago(s.medioPago)}</td>
+                    <td>{formatFecha(s.fechaAlta)}</td>
+                    <td>{pagoBadge(s.estadoCuotaMes, s.sinCuotaMes)}</td>
+                    <td style={{ color: s.saldoCuotaMes > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: s.saldoCuotaMes > 0 ? 600 : 400 }}>
+                      {formatUYU(s.saldoCuotaMes)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sociosActivos.socios.length === 0 && <div className="empty-state">No hay socios activos</div>}
+          </div>
+        </>
       )}
     </div>
   );

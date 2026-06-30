@@ -29,6 +29,34 @@ async function request<T>(endpoint: string, options?: RequestInit & { skipAuth?:
   return res.json() as Promise<T>;
 }
 
+async function downloadFile(endpoint: string, fallbackName: string) {
+  const headers: Record<string, string> = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  if (emisorId) headers['X-Emisor-Id'] = String(emisorId);
+
+  const res = await fetch(`${API_URL}${endpoint}`, { headers });
+  if (res.status === 401) {
+    localStorage.removeItem('gestionspa_auth');
+    localStorage.removeItem('gestionspa_emisor');
+    window.location.href = '/login';
+    throw new Error('Sesión expirada');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ mensaje: res.statusText }));
+    throw new Error(err.mensaje || res.statusText);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition');
+  const match = disposition?.match(/filename="?([^";\n]+)"?/);
+  const name = match?.[1] || fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   auth: {
     login: (email: string, password: string) =>
@@ -147,6 +175,18 @@ export const api = {
       if (mes) p.set('mes', String(mes));
       if (anio) p.set('anio', String(anio));
       return request<{ nombre: string; cantidad: number; total: number }[]>(`/informes/servicios-mas-vendidos?${p}`);
+    },
+    sociosActivos: (mes?: number, anio?: number) => {
+      const p = new URLSearchParams();
+      if (mes) p.set('mes', String(mes));
+      if (anio) p.set('anio', String(anio));
+      return request<import('../types').InformeSociosActivos>(`/informes/socios-activos?${p}`);
+    },
+    exportSociosActivos: (mes?: number, anio?: number) => {
+      const p = new URLSearchParams();
+      if (mes) p.set('mes', String(mes));
+      if (anio) p.set('anio', String(anio));
+      return downloadFile(`/informes/socios-activos/export?${p}`, 'socios-activos.csv');
     },
   },
 };

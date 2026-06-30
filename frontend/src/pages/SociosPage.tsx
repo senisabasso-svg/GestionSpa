@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import type { Socio, EstadoSocio, MetodoPago, Familia, TipoIdentificacionSocio } from '../types';
 import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
-import { Plus, Edit2 } from 'lucide-react';
+import { Plus, Edit2, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const hoy = () => fechaHoyLocal();
@@ -17,7 +17,7 @@ interface SocioForm {
   nombre: string;
   apellido: string;
   cedula: string;
-  tipoIdentificacion: TipoIdentificacionSocio;
+  tipoIdentificacion: TipoIdentificacionSocio; 
   telefono: string;
   email: string;
   medioPago: MetodoPago;
@@ -56,6 +56,7 @@ export default function SociosPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmSuspend, setConfirmSuspend] = useState<Socio | null>(null);
   const [buscarDebounced, setBuscarDebounced] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setBuscarDebounced(buscar), 300);
@@ -115,6 +116,17 @@ export default function SociosPage() {
     load();
   };
 
+  const exportarActivos = async () => {
+    setExporting(true);
+    try {
+      await api.informes.exportSociosActivos();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al exportar');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -126,6 +138,9 @@ export default function SociosPage() {
         <div className="search">
           <input className="form-control" placeholder="Buscar por nombre, documento o número..." value={buscar} onChange={e => setBuscar(e.target.value)} maxLength={100} />
         </div>
+        <button className="btn btn-secondary" onClick={exportarActivos} disabled={exporting}>
+          <Download size={16} /> {exporting ? 'Exportando...' : 'Exportar activos'}
+        </button>
         <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Socio</button>
       </div>
 

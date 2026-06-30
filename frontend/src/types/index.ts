@@ -173,6 +173,42 @@ export interface InformeCobranza {
   cargosPendientes: { id: number; servicio: string; monto: number; fecha: string; estado: EstadoPago }[];
 }
 
+export interface InformeSociosActivosResumen {
+  totalActivos: number;
+  conCuotaPagada: number;
+  conCuotaPendiente: number;
+  sinCuotaMes: number;
+  conFamilia: number;
+  sinFamilia: number;
+  totalCuotasMensuales: number;
+}
+
+export interface InformeSocioActivo {
+  id: number;
+  numeroSocio: string;
+  nombre: string;
+  apellido: string;
+  cedula: string;
+  tipoIdentificacion: TipoIdentificacionSocio;
+  telefono?: string;
+  email?: string;
+  familiaNombre?: string;
+  cuotaMensual: number;
+  medioPago: MetodoPago;
+  fechaAlta: string;
+  fechaVencimiento?: string;
+  estadoCuotaMes?: EstadoPago | null;
+  sinCuotaMes: boolean;
+  saldoCuotaMes: number;
+}
+
+export interface InformeSociosActivos {
+  mes: number;
+  anio: number;
+  resumen: InformeSociosActivosResumen;
+  socios: InformeSocioActivo[];
+}
+
 export interface Ingreso {
   id: number;
   socioId: number;

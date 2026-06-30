@@ -122,3 +122,17 @@ public record CargoPendienteDto(
 public record InformeIngresosDto(
     DateTime Fecha, int TotalEntradas, int AccesosPermitidos, int AccesosRechazados,
     List<IngresoDto> Detalle);
+
+public record InformeSociosActivosResumenDto(
+    int TotalActivos, int ConCuotaPagada, int ConCuotaPendiente, int SinCuotaMes,
+    int ConFamilia, int SinFamilia, decimal TotalCuotasMensuales);
+
+public record InformeSocioActivoDto(
+    int Id, string NumeroSocio, string Nombre, string Apellido, string Cedula,
+    TipoIdentificacionSocio TipoIdentificacion, string? Telefono, string? Email,
+    string? FamiliaNombre, decimal CuotaMensual, MetodoPago MedioPago,
+    DateTime FechaAlta, DateTime? FechaVencimiento,
+    EstadoPago? EstadoCuotaMes, bool SinCuotaMes, decimal SaldoCuotaMes);
+
+public record InformeSociosActivosDto(
+    int Mes, int Anio, InformeSociosActivosResumenDto Resumen, List<InformeSocioActivoDto> Socios);

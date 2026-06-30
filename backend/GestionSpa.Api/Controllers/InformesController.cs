@@ -179,4 +179,89 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
 
         return Ok(datos);
     }
+
+    [HttpGet("socios-activos")]
+    public async Task<ActionResult<InformeSociosActivosDto>> GetSociosActivos([FromQuery] int? mes, [FromQuery] int? anio)
+    {
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
+        return await BuildInformeSociosActivosAsync(m, a);
+    }
+
+    [HttpGet("socios-activos/export")]
+    public async Task<IActionResult> ExportSociosActivos([FromQuery] int? mes, [FromQuery] int? anio)
+    {
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+        var m = mes ?? mesActual;
+        var a = anio ?? anioActual;
+        var informe = await BuildInformeSociosActivosAsync(m, a);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento;Estado cuota mes;Saldo cuota mes");
+        foreach (var s in informe.Socios)
+        {
+            var tipoDoc = s.TipoIdentificacion == TipoIdentificacionSocio.Cedula ? "Cédula" : "Otro";
+            var estadoCuota = s.SinCuotaMes ? "Sin cuota" : (s.EstadoCuotaMes?.ToString() ?? "—");
+            sb.AppendLine(string.Join(';', new[]
+            {
+                CsvCell(s.NumeroSocio), CsvCell(s.Nombre), CsvCell(s.Apellido), CsvCell(tipoDoc),
+                CsvCell(s.Cedula), CsvCell(s.Telefono), CsvCell(s.Email), CsvCell(s.FamiliaNombre),
+                s.CuotaMensual.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                CsvCell(s.MedioPago.ToString()), CsvCell(s.FechaAlta.ToString("dd/MM/yyyy")),
+                CsvCell(s.FechaVencimiento?.ToString("dd/MM/yyyy")), CsvCell(estadoCuota),
+                s.SaldoCuotaMes.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+            }));
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetPreamble()
+            .Concat(System.Text.Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        var fileName = $"socios-activos-{m:D2}-{a}.csv";
+        return File(bytes, "text/csv; charset=utf-8", fileName);
+    }
+
+    private async Task<InformeSociosActivosDto> BuildInformeSociosActivosAsync(int m, int a)
+    {
+        var socios = await db.Socios.ForTenant(tenant)
+            .Include(s => s.Familia)
+            .Where(s => s.Estado == EstadoSocio.Activo)
+            .OrderBy(s => s.Apellido).ThenBy(s => s.Nombre)
+            .ToListAsync();
+
+        var cuotas = await db.CuotasMensuales.ForTenant(tenant)
+            .Where(c => c.Mes == m && c.Anio == a)
+            .ToDictionaryAsync(c => c.SocioId);
+
+        var items = socios.Select(s =>
+        {
+            cuotas.TryGetValue(s.Id, out var cuota);
+            var sinCuota = cuota == null;
+            var saldo = cuota != null ? cuota.Total - cuota.MontoPagado : 0m;
+            return new InformeSocioActivoDto(
+                s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.TipoIdentificacion,
+                s.Telefono, s.Email, s.Familia?.Nombre, s.CuotaMensual, s.MedioPago,
+                s.FechaAlta, s.FechaVencimiento,
+                cuota?.EstadoPago, sinCuota, saldo);
+        }).ToList();
+
+        var resumen = new InformeSociosActivosResumenDto(
+            items.Count,
+            items.Count(i => i.EstadoCuotaMes == EstadoPago.Pagado),
+            items.Count(i => i.EstadoCuotaMes is EstadoPago.Pendiente or EstadoPago.Parcial),
+            items.Count(i => i.SinCuotaMes),
+            items.Count(i => !string.IsNullOrEmpty(i.FamiliaNombre)),
+            items.Count(i => string.IsNullOrEmpty(i.FamiliaNombre)),
+            items.Sum(i => i.CuotaMensual));
+
+        return new InformeSociosActivosDto(m, a, resumen, items);
+    }
+
+    private static string CsvCell(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        var escaped = value.Replace("\"", "\"\"");
+        return escaped.Contains(';') || escaped.Contains('"') || escaped.Contains('\n')
+            ? $"\"{escaped}\""
+            : escaped;
+    }
 }
