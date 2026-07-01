@@ -25,7 +25,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
 
         var term = ValidationHelper.SanitizeSearchTerm(buscar);
         if (term != null)
-            socios = socios.Where(s => ValidationHelper.MatchesSearch(term, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula)).ToList();
+            socios = socios.Where(s => ValidationHelper.MatchesSearch(term, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.Ciudad)).ToList();
 
         return socios.Select(Map).ToList();
     }
@@ -51,8 +51,8 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         var emisorId = tenant.RequireEmisorId();
         var errors = ValidationHelper.ValidateSocio(
             dto.Nombre, dto.Apellido, dto.Cedula, dto.TipoIdentificacion,
-            dto.Telefono, dto.Email,
-            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
+            dto.Telefono, dto.Email, dto.Localidad,
+            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual, esAlta: true);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula))
@@ -77,7 +77,7 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
             CuotaMensual = dto.CuotaMensual,
             FamiliaId = dto.FamiliaId,
             Estado = dto.Estado,
-            Ciudad = "Salto"
+            Ciudad = dto.Localidad!.Trim(),
         };
 
         db.Socios.Add(socio);
@@ -101,8 +101,8 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
 
         var errors = ValidationHelper.ValidateSocio(
             dto.Nombre, dto.Apellido, dto.Cedula, dto.TipoIdentificacion,
-            dto.Telefono, dto.Email,
-            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual);
+            dto.Telefono, dto.Email, dto.Localidad,
+            dto.FechaAlta, dto.FechaVencimiento, dto.CuotaMensual, esAlta: false);
         if (errors.Count > 0) return ValidationHelper.ToBadRequest(errors);
 
         if (await db.Socios.ForTenant(tenant).AnyAsync(s => s.Cedula == dto.Cedula && s.Id != id))
@@ -124,6 +124,8 @@ public class SociosController(AppDbContext db, CuotaService cuotaService, ITenan
         socio.CuotaMensual = dto.CuotaMensual;
         socio.FamiliaId = dto.FamiliaId;
         socio.Estado = dto.Estado;
+        if (!string.IsNullOrWhiteSpace(dto.Localidad))
+            socio.Ciudad = dto.Localidad.Trim();
 
         await db.SaveChangesAsync();
 

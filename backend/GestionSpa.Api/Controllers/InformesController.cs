@@ -238,7 +238,7 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
             var saldo = cuota != null ? cuota.Total - cuota.MontoPagado : 0m;
             return new InformeSocioActivoDto(
                 s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.TipoIdentificacion,
-                s.Telefono, s.Email, s.Familia?.Nombre, s.CuotaMensual, s.MedioPago,
+                s.Telefono, s.Email, s.Familia?.Nombre, s.Ciudad, s.CuotaMensual, s.MedioPago,
                 s.FechaAlta, s.FechaVencimiento,
                 cuota?.EstadoPago, sinCuota, saldo);
         }).ToList();
@@ -289,7 +289,7 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
             var saldo = cuota != null ? cuota.Total - cuota.MontoPagado : 0m;
             return new InformeSocioActivoDto(
                 s.Id, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.TipoIdentificacion,
-                s.Telefono, s.Email, s.Familia?.Nombre, s.CuotaMensual, s.MedioPago,
+                s.Telefono, s.Email, s.Familia?.Nombre, s.Ciudad, s.CuotaMensual, s.MedioPago,
                 s.FechaAlta, s.FechaVencimiento,
                 cuota?.EstadoPago, sinCuota, saldo);
         }).ToList();
@@ -330,16 +330,17 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
     {
         var sb = new System.Text.StringBuilder();
         if (includeCuotaMes)
-            sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento;Estado cuota mes;Saldo cuota mes");
+            sb.AppendLine("Nº Socio;Nombre;Apellido;Localidad;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento;Estado cuota mes;Saldo cuota mes");
         else
-            sb.AppendLine("Nº Socio;Nombre;Apellido;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento");
+            sb.AppendLine("Nº Socio;Nombre;Apellido;Localidad;Tipo documento;Documento;Teléfono;Email;Familia;Cuota mensual;Medio de pago;Fecha alta;Vencimiento");
 
         foreach (var s in socios)
         {
             var tipoDoc = s.TipoIdentificacion == TipoIdentificacionSocio.Cedula ? "Cédula" : "Otro";
             var cells = new List<string>
             {
-                CsvCell(s.NumeroSocio), CsvCell(s.Nombre), CsvCell(s.Apellido), CsvCell(tipoDoc),
+                CsvCell(s.NumeroSocio), CsvCell(s.Nombre), CsvCell(s.Apellido), CsvCell(s.Localidad),
+                CsvCell(tipoDoc),
                 CsvCell(s.Cedula), CsvCell(s.Telefono), CsvCell(s.Email), CsvCell(s.FamiliaNombre),
                 s.CuotaMensual.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
                 CsvCell(s.MedioPago.ToString()), CsvCell(s.FechaAlta.ToString("dd/MM/yyyy")),

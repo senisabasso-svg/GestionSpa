@@ -7,6 +7,8 @@ if (isProd && !rawApiUrl) {
 
 export const API_URL = rawApiUrl || 'http://localhost:5000/api';
 
+export const LOCALIDAD_PENDIENTE = 'Pendiente agregar localidad';
+
 export type RolUsuario = 'SuperAdmin' | 'AdminEmisor' | 'Operador';
 export type EstadoSocio = 'Activo' | 'Suspendido' | 'Inactivo';
 export type TipoIdentificacionSocio = 'Cedula' | 'Otro';
@@ -193,6 +195,7 @@ export interface InformeSocioActivo {
   telefono?: string;
   email?: string;
   familiaNombre?: string;
+  localidad?: string;
   cuotaMensual: number;
   medioPago: MetodoPago;
   fechaAlta: string;

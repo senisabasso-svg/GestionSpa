@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { InformeResumen, InformeCobranza, InformeSociosActivos, Ingreso, EstadoPago, ResultadoSorteo } from '../types';
-import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago, fechaHoyLocal } from '../types';
+import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago, fechaHoyLocal, LOCALIDAD_PENDIENTE } from '../types';
 import { Download, Gift } from 'lucide-react';
 
 const inicioMes = () => {
@@ -349,7 +349,7 @@ export default function InformesPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Nº</th><th>Nombre</th><th>Documento</th><th>Familia</th><th>Cuota</th>
+                  <th>Nº</th><th>Nombre</th><th>Localidad</th><th>Documento</th><th>Familia</th><th>Cuota</th>
                   <th>Medio pago</th><th>Alta</th><th>Estado cuota</th><th>Saldo mes</th>
                 </tr>
               </thead>
@@ -358,6 +358,11 @@ export default function InformesPage() {
                   <tr key={s.id}>
                     <td><strong>{s.numeroSocio}</strong></td>
                     <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                    <td>
+                      {!s.localidad || s.localidad.toLowerCase() === LOCALIDAD_PENDIENTE.toLowerCase() ? (
+                        <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>{LOCALIDAD_PENDIENTE}</span>
+                      ) : s.localidad}
+                    </td>
                     <td>
                       {s.cedula}
                       {s.tipoIdentificacion === 'Otro' && (

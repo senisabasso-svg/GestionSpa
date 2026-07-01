@@ -13,7 +13,7 @@ public record SocioDto(
 public record CrearSocioDto(
     string Nombre, string Apellido, string Cedula,
     TipoIdentificacionSocio TipoIdentificacion,
-    string? Telefono, string? Email,
+    string? Telefono, string? Email, string? Localidad,
     DateTime FechaAlta, DateTime? FechaVencimiento,
     MetodoPago MedioPago, decimal CuotaMensual, int? FamiliaId,
     EstadoSocio Estado = EstadoSocio.Activo);
@@ -130,7 +130,7 @@ public record InformeSociosActivosResumenDto(
 public record InformeSocioActivoDto(
     int Id, string NumeroSocio, string Nombre, string Apellido, string Cedula,
     TipoIdentificacionSocio TipoIdentificacion, string? Telefono, string? Email,
-    string? FamiliaNombre, decimal CuotaMensual, MetodoPago MedioPago,
+    string? FamiliaNombre, string? Localidad, decimal CuotaMensual, MetodoPago MedioPago,
     DateTime FechaAlta, DateTime? FechaVencimiento,
     EstadoPago? EstadoCuotaMes, bool SinCuotaMes, decimal SaldoCuotaMes);
 

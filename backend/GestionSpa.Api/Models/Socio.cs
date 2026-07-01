@@ -13,7 +13,7 @@ public class Socio : IEmisorEntity
     public string? Telefono { get; set; }
     public string? Email { get; set; }
     public string? Direccion { get; set; }
-    public string? Ciudad { get; set; } = "Salto";
+    public string? Ciudad { get; set; }
     public string? Departamento { get; set; } = "Salto";
     public DateTime FechaAlta { get; set; } = DateTime.UtcNow;
     public DateTime? FechaVencimiento { get; set; }

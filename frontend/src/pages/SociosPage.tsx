@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { Socio, EstadoSocio, MetodoPago, Familia, TipoIdentificacionSocio } from '../types';
-import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal } from '../types';
+import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal, LOCALIDAD_PENDIENTE } from '../types';
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -25,19 +25,21 @@ interface SocioForm {
   fechaVencimiento: string;
   cuotaMensual: number;
   familiaId: string;
+  localidad: string;
   activo: boolean;
 }
 
 const emptyForm = (): SocioForm => ({
   nombre: '', apellido: '', cedula: '', tipoIdentificacion: 'Cedula', telefono: '', email: '',
   medioPago: 'Efectivo', fechaAlta: hoy(), fechaVencimiento: '', cuotaMensual: 3500,
-  familiaId: '', activo: true,
+  familiaId: '', localidad: '', activo: true,
 });
 
 const toPayload = (form: SocioForm) => ({
   nombre: form.nombre.trim(), apellido: form.apellido.trim(), cedula: form.cedula.trim(),
   tipoIdentificacion: form.tipoIdentificacion,
   telefono: form.telefono.trim() || null, email: form.email.trim() || null,
+  localidad: form.localidad.trim() || null,
   medioPago: form.medioPago, fechaAlta: form.fechaAlta,
   fechaVencimiento: form.fechaVencimiento || null, cuotaMensual: form.cuotaMensual,
   familiaId: form.familiaId ? Number(form.familiaId) : null,
@@ -90,6 +92,7 @@ export default function SociosPage() {
       fechaVencimiento: s.fechaVencimiento?.split('T')[0] || '',
       cuotaMensual: s.cuotaMensual,
       familiaId: s.familiaId ? String(s.familiaId) : '',
+      localidad: s.ciudad || '',
       activo: s.estado === 'Activo',
     });
     setErrors([]); setModal(true);
@@ -97,7 +100,7 @@ export default function SociosPage() {
 
   const save = async () => {
     setErrors([]);
-    const validationErrors = validateSocio(form);
+    const validationErrors = validateSocio(form, !editId);
     if (validationErrors.length > 0) { setErrors(validationErrors); return; }
     try {
       const payload = toPayload(form);
@@ -148,7 +151,7 @@ export default function SociosPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th><th>Nombre</th><th>Familia</th><th>Documento</th><th>Teléfono</th>
+              <th>Nº Socio</th><th>Nombre</th><th>Localidad</th><th>Familia</th><th>Documento</th><th>Teléfono</th>
               <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th className="col-vencimiento">Vencimiento</th><th className="col-estado">Estado</th><th>Acciones</th>
             </tr>
           </thead>
@@ -157,6 +160,11 @@ export default function SociosPage() {
               <tr key={s.id}>
                 <td><strong>{s.numeroSocio}</strong></td>
                 <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                <td>
+                  {!s.ciudad || s.ciudad.toLowerCase() === LOCALIDAD_PENDIENTE.toLowerCase() ? (
+                    <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>{LOCALIDAD_PENDIENTE}</span>
+                  ) : s.ciudad}
+                </td>
                 <td>{s.familiaNombre || '—'}</td>
                 <td>
                   {s.cedula}
@@ -236,6 +244,21 @@ export default function SociosPage() {
             <div className="form-group">
               <label>Email</label>
               <input className="form-control" type="email" maxLength={LIMITS.email} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Localidad *</label>
+              <input
+                className="form-control"
+                maxLength={LIMITS.localidad}
+                placeholder="Ej: Salto, Paysandú, Montevideo..."
+                value={form.localidad}
+                onChange={e => setForm({ ...form, localidad: e.target.value })}
+              />
+              {editId && form.localidad.toLowerCase() === LOCALIDAD_PENDIENTE.toLowerCase() && (
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--color-warning)' }}>
+                  Actualizá la localidad de este socio.
+                </p>
+              )}
             </div>
             <div className="form-group">
               <label>Familia</label>

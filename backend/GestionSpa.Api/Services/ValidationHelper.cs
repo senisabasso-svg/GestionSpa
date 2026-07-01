@@ -17,6 +17,8 @@ public static class ValidationHelper
     public const int MaxEmail = 100;
     public const int MaxNotas = 500;
     public const int MaxBuscar = 100;
+    public const int MaxLocalidad = 80;
+    public const string LocalidadPendiente = "Pendiente agregar localidad";
 
     private static readonly Regex NombreRegex = new(@"^[\p{L}\s'.-]+$", RegexOptions.Compiled);
     private static readonly Regex CedulaUyRegex = new(@"^\d{1,3}\.\d{3}\.\d{3}-\d$", RegexOptions.Compiled);
@@ -24,9 +26,9 @@ public static class ValidationHelper
     public static List<string> ValidateSocio(
         string nombre, string apellido, string cedula,
         TipoIdentificacionSocio tipoIdentificacion,
-        string? telefono, string? email,
+        string? telefono, string? email, string? localidad,
         DateTime fechaAlta, DateTime? fechaVencimiento,
-        decimal cuotaMensual)
+        decimal cuotaMensual, bool esAlta)
     {
         var errors = new List<string>();
 
@@ -61,6 +63,18 @@ public static class ValidationHelper
                 errors.Add($"La identificación no puede superar {MaxDocumentoOtro} caracteres");
         }
 
+        if (esAlta)
+        {
+            if (string.IsNullOrWhiteSpace(localidad) || IsLocalidadPendiente(localidad))
+                errors.Add("La localidad es obligatoria");
+            else if (localidad.Trim().Length > MaxLocalidad)
+                errors.Add($"La localidad no puede superar {MaxLocalidad} caracteres");
+        }
+        else if (!string.IsNullOrWhiteSpace(localidad) && localidad.Trim().Length > MaxLocalidad)
+        {
+            errors.Add($"La localidad no puede superar {MaxLocalidad} caracteres");
+        }
+
         if (!string.IsNullOrWhiteSpace(telefono) && telefono.Length > MaxTelefono)
             errors.Add($"El teléfono no puede superar {MaxTelefono} caracteres");
 
@@ -87,6 +101,9 @@ public static class ValidationHelper
 
         return errors;
     }
+
+    public static bool IsLocalidadPendiente(string? localidad) =>
+        string.Equals(localidad?.Trim(), LocalidadPendiente, StringComparison.OrdinalIgnoreCase);
 
     public static List<string> ValidateFamilia(string nombre, decimal cuotaMensual)
     {
