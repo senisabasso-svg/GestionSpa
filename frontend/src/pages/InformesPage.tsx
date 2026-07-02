@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import type { InformeResumen, InformeCobranza, InformeSociosActivos, Ingreso, EstadoPago, ResultadoSorteo } from '../types';
 import { MESES, formatUYU, formatHora, formatFecha, labelMetodoPago, fechaHoyLocal, LOCALIDAD_PENDIENTE } from '../types';
 import { Download, Gift } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const inicioMes = () => {
   const d = new Date();
@@ -19,6 +20,7 @@ const pagoBadge = (estado: EstadoPago | null | undefined, sinCuota?: boolean) =>
 };
 
 export default function InformesPage() {
+  const { isSuperAdmin } = useAuth();
   const [tab, setTab] = useState<'resumen' | 'cobranza' | 'ingresos' | 'servicios' | 'sociosActivos'>('resumen');
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [anio, setAnio] = useState(new Date().getFullYear());
@@ -294,26 +296,28 @@ export default function InformesPage() {
             </div>
           </div>
 
-          <div className="card" style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ marginBottom: '0.75rem', color: 'var(--color-primary-dark)' }}>Sorteo entre socios activos</h3>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-              Se elige al azar un ganador entre los <strong>{sociosActivos.resumen.totalActivos}</strong> socios activos actuales.
-            </p>
-            <button className="btn btn-primary" onClick={generarSorteo} disabled={sorteando || sociosActivos.resumen.totalActivos === 0}>
-              <Gift size={16} /> {sorteando ? 'Sorteando...' : 'Generar sorteo'}
-            </button>
-            {ganador && (
-              <div className="alert alert-success" style={{ marginTop: '1rem' }}>
-                <strong>¡Ganador del sorteo!</strong>
-                <div style={{ marginTop: '0.5rem', fontSize: '1.1rem' }}>
-                  {ganador.nombreCompleto} <span style={{ color: 'var(--color-text-muted)' }}>(Nº {ganador.numeroSocio})</span>
+          {isSuperAdmin && (
+            <div className="card" style={{ marginBottom: '1.25rem' }}>
+              <h3 style={{ marginBottom: '0.75rem', color: 'var(--color-primary-dark)' }}>Sorteo entre socios activos</h3>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                Se elige al azar un ganador entre los <strong>{sociosActivos.resumen.totalActivos}</strong> socios activos actuales.
+              </p>
+              <button className="btn btn-primary" onClick={generarSorteo} disabled={sorteando || sociosActivos.resumen.totalActivos === 0}>
+                <Gift size={16} /> {sorteando ? 'Sorteando...' : 'Generar sorteo'}
+              </button>
+              {ganador && (
+                <div className="alert alert-success" style={{ marginTop: '1rem' }}>
+                  <strong>¡Ganador del sorteo!</strong>
+                  <div style={{ marginTop: '0.5rem', fontSize: '1.1rem' }}>
+                    {ganador.nombreCompleto} <span style={{ color: 'var(--color-text-muted)' }}>(Nº {ganador.numeroSocio})</span>
+                  </div>
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                    Documento: {ganador.cedula} · Participantes: {ganador.totalParticipantes}
+                  </div>
                 </div>
-                <div style={{ marginTop: '0.35rem', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
-                  Documento: {ganador.cedula} · Participantes: {ganador.totalParticipantes}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div className="card-grid">
             <div className="stat-card">
