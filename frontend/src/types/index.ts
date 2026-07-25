@@ -230,6 +230,9 @@ export interface PorteroConfig {
   sincronizarAutomatico: boolean;
   webhookUrl: string;
   fechaActualizacion: string | null;
+  agentPullUrl: string;
+  ultimoHeartbeatUtc: string | null;
+  comandosPendientes: number;
 }
 
 export interface GuardarPorteroConfig {

@@ -31,8 +31,6 @@ public class PorteroController(
         var emisor = await RequireEmisorAsync();
         if (emisor is null) return Forbid();
 
-        if (string.IsNullOrWhiteSpace(dto.ApiUrl))
-            return BadRequest(new { mensaje = "La URL de ApiPortero es obligatoria", errores = new[] { "La URL de ApiPortero es obligatoria" } });
         if (dto.Habilitado && string.IsNullOrWhiteSpace(dto.ApiKey))
             return BadRequest(new { mensaje = "La API Key es obligatoria cuando el portero está habilitado", errores = new[] { "La API Key es obligatoria" } });
 
@@ -40,31 +38,12 @@ public class PorteroController(
     }
 
     [HttpPost("probar")]
-    public async Task<ActionResult<PorteroPruebaConexionDto>> ProbarConexion([FromBody] GuardarPorteroConfigDto? dto)
+    public async Task<ActionResult<PorteroPruebaConexionDto>> ProbarConexion()
     {
         var emisor = await RequireEmisorAsync();
         if (emisor is null) return Forbid();
 
-        EmisorPorteroConfig config;
-        if (dto is not null && !string.IsNullOrWhiteSpace(dto.ApiUrl))
-        {
-            config = new EmisorPorteroConfig
-            {
-                EmisorId = emisor.Id,
-                ApiUrl = dto.ApiUrl.Trim().TrimEnd('/'),
-                ApiKey = dto.ApiKey.Trim(),
-                DeviceSn = string.IsNullOrWhiteSpace(dto.DeviceSn) ? "7674222960189" : dto.DeviceSn.Trim(),
-            };
-        }
-        else
-        {
-            var saved = await portero.GetConfigAsync(emisor.Id);
-            if (saved is null)
-                return BadRequest(new { mensaje = "Guardá la configuración antes de probar", errores = new[] { "Configuración no guardada" } });
-            config = saved;
-        }
-
-        return await portero.TestConnectionAsync(config);
+        return await portero.TestConnectionAsync(emisor.Id);
     }
 
     [HttpPost("sincronizar")]
@@ -82,11 +61,14 @@ public class PorteroController(
         var emisor = await RequireEmisorAsync();
         if (emisor is null) return Forbid();
 
-        var config = await portero.GetConfigAsync(emisor.Id);
-        if (config is null || !config.Habilitado)
-            return BadRequest(new { mensaje = "Portero no habilitado", errores = new[] { "Portero no habilitado" } });
-
-        return await portero.AbrirPuertaAsync(config);
+        try
+        {
+            return await portero.AbrirPuertaAsync(emisor.Id);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
     }
 
     private async Task<Emisor?> RequireEmisorAsync()

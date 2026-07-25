@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<Ingreso> Ingresos => Set<Ingreso>();
     public DbSet<EmisorPorteroConfig> EmisorPorteroConfigs => Set<EmisorPorteroConfig>();
+    public DbSet<PorteroComando> PorteroComandos => Set<PorteroComando>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -98,6 +99,14 @@ public class AppDbContext : DbContext
         {
             e.HasKey(x => x.EmisorId);
             e.HasOne(x => x.Emisor).WithOne(em => em.PorteroConfig).HasForeignKey<EmisorPorteroConfig>(x => x.EmisorId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PorteroComando>(e =>
+        {
+            e.HasIndex(x => new { x.EmisorId, x.Estado, x.FechaCreacion });
+            e.HasIndex(x => new { x.EmisorId, x.ClaveIdempotencia, x.Estado });
+            e.Property(x => x.PayloadJson).HasColumnType("text");
+            e.HasOne(x => x.Emisor).WithMany().HasForeignKey(x => x.EmisorId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -222,8 +222,8 @@ export const api = {
     getConfig: () => request<import('../types').PorteroConfig>('/portero/config'),
     saveConfig: (data: import('../types').GuardarPorteroConfig) =>
       request<import('../types').PorteroConfig>('/portero/config', { method: 'PUT', body: JSON.stringify(data) }),
-    probar: (data?: import('../types').GuardarPorteroConfig) =>
-      request<import('../types').PorteroPruebaConexion>('/portero/probar', { method: 'POST', body: JSON.stringify(data ?? null) }),
+    probar: () =>
+      request<import('../types').PorteroPruebaConexion>('/portero/probar', { method: 'POST' }),
     sincronizar: () => request<import('../types').PorteroSincronizacion>('/portero/sincronizar', { method: 'POST' }),
     abrirPuerta: () => request<import('../types').PorteroAccion>('/portero/abrir-puerta', { method: 'POST' }),
   },

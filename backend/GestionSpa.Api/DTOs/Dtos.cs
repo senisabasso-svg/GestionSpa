@@ -143,7 +143,8 @@ public record ResultadoSorteoDto(
 
 public record PorteroConfigDto(
     bool Habilitado, string ApiUrl, string ApiKey, string? WebhookSecret,
-    string DeviceSn, bool SincronizarAutomatico, string WebhookUrl, DateTime? FechaActualizacion);
+    string DeviceSn, bool SincronizarAutomatico, string WebhookUrl, DateTime? FechaActualizacion,
+    string AgentPullUrl, DateTime? UltimoHeartbeatUtc, int ComandosPendientes);
 
 public record GuardarPorteroConfigDto(
     bool Habilitado, string ApiUrl, string ApiKey, string? WebhookSecret,
@@ -157,3 +158,11 @@ public record PorteroSincronizacionDto(
 
 public record PorteroAccionDto(
     string Mensaje, object? Detalle);
+
+public record PorteroAgentComandoDto(
+    long Id, string Tipo, object Payload, DateTime FechaCreacion);
+
+public record PorteroAgentAckDto(bool Ok, string? Error);
+
+public record PorteroAgentHeartbeatDto(
+    string? Version, int? PendingLocalCommands);

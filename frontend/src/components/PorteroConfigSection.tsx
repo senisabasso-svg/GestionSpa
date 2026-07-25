@@ -6,7 +6,7 @@ import { Wifi, RefreshCw, DoorOpen, Copy, Check } from 'lucide-react';
 
 const emptyForm: GuardarPorteroConfig = {
   habilitado: false,
-  apiUrl: 'http://localhost:5000',
+  apiUrl: 'pull',
   apiKey: '',
   webhookSecret: '',
   deviceSn: '7674222960189',
@@ -17,6 +17,9 @@ export default function PorteroConfigSection() {
   const { emisorSlug } = useAuth();
   const [form, setForm] = useState<GuardarPorteroConfig>(emptyForm);
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [agentPullUrl, setAgentPullUrl] = useState('');
+  const [ultimoHeartbeat, setUltimoHeartbeat] = useState<string | null>(null);
+  const [comandosPendientes, setComandosPendientes] = useState(0);
   const [fechaActualizacion, setFechaActualizacion] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,23 +30,29 @@ export default function PorteroConfigSection() {
   const [error, setError] = useState<string | null>(null);
   const [prueba, setPrueba] = useState<PorteroPruebaConexion | null>(null);
   const [syncResult, setSyncResult] = useState<PorteroSincronizacion | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const applyConfig = (cfg: PorteroConfig) => {
+    setForm({
+      habilitado: cfg.habilitado,
+      apiUrl: cfg.apiUrl || 'pull',
+      apiKey: cfg.apiKey,
+      webhookSecret: cfg.webhookSecret || '',
+      deviceSn: cfg.deviceSn,
+      sincronizarAutomatico: cfg.sincronizarAutomatico,
+    });
+    setWebhookUrl(cfg.webhookUrl);
+    setAgentPullUrl(cfg.agentPullUrl);
+    setUltimoHeartbeat(cfg.ultimoHeartbeatUtc);
+    setComandosPendientes(cfg.comandosPendientes ?? 0);
+    setFechaActualizacion(cfg.fechaActualizacion);
+  };
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const cfg: PorteroConfig = await api.portero.getConfig();
-      setForm({
-        habilitado: cfg.habilitado,
-        apiUrl: cfg.apiUrl,
-        apiKey: cfg.apiKey,
-        webhookSecret: cfg.webhookSecret || '',
-        deviceSn: cfg.deviceSn,
-        sincronizarAutomatico: cfg.sincronizarAutomatico,
-      });
-      setWebhookUrl(cfg.webhookUrl);
-      setFechaActualizacion(cfg.fechaActualizacion);
+      applyConfig(await api.portero.getConfig());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar configuración');
     } finally {
@@ -60,11 +69,11 @@ export default function PorteroConfigSection() {
     try {
       const cfg = await api.portero.saveConfig({
         ...form,
+        apiUrl: form.apiUrl?.trim() || 'pull',
         webhookSecret: form.webhookSecret?.trim() || null,
       });
-      setWebhookUrl(cfg.webhookUrl);
-      setFechaActualizacion(cfg.fechaActualizacion);
-      setMensaje('Configuración guardada correctamente');
+      applyConfig(cfg);
+      setMensaje('Configuración guardada. En la PC del spa usá la misma API Key y la URL base de esta API.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
     } finally {
@@ -77,7 +86,8 @@ export default function PorteroConfigSection() {
     setError(null);
     setPrueba(null);
     try {
-      setPrueba(await api.portero.probar(form));
+      setPrueba(await api.portero.probar());
+      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al probar conexión');
     } finally {
@@ -92,7 +102,8 @@ export default function PorteroConfigSection() {
     try {
       const result = await api.portero.sincronizar();
       setSyncResult(result);
-      setMensaje(`Sincronización: ${result.exitosos}/${result.total} socios enviados al portero`);
+      setMensaje(`Encolados ${result.exitosos}/${result.total} socios. El agente en la PC los aplicará en segundos.`);
+      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al sincronizar');
     } finally {
@@ -105,6 +116,7 @@ export default function PorteroConfigSection() {
     setError(null);
     try {
       setMensaje((await api.portero.abrirPuerta()).mensaje);
+      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al abrir puerta');
     } finally {
@@ -112,11 +124,11 @@ export default function PorteroConfigSection() {
     }
   };
 
-  const copyWebhook = async () => {
-    if (!webhookUrl) return;
-    await navigator.clipboard.writeText(webhookUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyText = async (value: string, key: string) => {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   if (loading) return <div className="loading">Cargando configuración del portero...</div>;
@@ -127,9 +139,10 @@ export default function PorteroConfigSection() {
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h3>Portero biométrico (ApiPorteroSpa)</h3>
+        <h3>Portero biométrico (modo pull)</h3>
         <p className="text-muted" style={{ marginBottom: '1rem' }}>
-          Conectá el control de acceso ZKTeco. ApiPortero debe correr en la PC del portero (puerto 5000 REST, 8081 TCP).
+          GestionSpa encola altas, bajas y abrir puerta. La PC del spa (ApiPorteroSpa) consulta sola esta API.
+          No hace falta túnel ni abrir puertos hacia la PC.
         </p>
 
         <label className="checkbox-label" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -139,11 +152,7 @@ export default function PorteroConfigSection() {
 
         <div className="form-grid">
           <div className="form-group">
-            <label>URL de ApiPortero</label>
-            <input type="url" value={form.apiUrl} onChange={e => setForm(f => ({ ...f, apiUrl: e.target.value }))} placeholder="http://192.168.1.100:5000" />
-          </div>
-          <div className="form-group">
-            <label>API Key (X-API-Key)</label>
+            <label>API Key (la misma en la PC del spa)</label>
             <input type="password" value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} autoComplete="off" />
           </div>
           <div className="form-group">
@@ -158,32 +167,44 @@ export default function PorteroConfigSection() {
 
         <label className="checkbox-label" style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={form.sincronizarAutomatico} onChange={e => setForm(f => ({ ...f, sincronizarAutomatico: e.target.checked }))} />
-          Sincronizar socios automáticamente al crear, editar o dar de baja
+          Encolar sync automático al crear, editar o dar de baja socios
         </label>
 
         <div className="form-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
-          <button type="button" className="btn btn-secondary" onClick={probar} disabled={probando}><Wifi size={16} /> {probando ? 'Probando...' : 'Probar conexión'}</button>
+          <button type="button" className="btn btn-secondary" onClick={probar} disabled={probando}><Wifi size={16} /> {probando ? 'Probando...' : 'Probar agente'}</button>
         </div>
 
         {prueba && <div className={`alert ${prueba.ok ? 'alert-success' : 'alert-error'}`} style={{ marginTop: '1rem' }}>{prueba.mensaje}</div>}
-        {fechaActualizacion && <p className="text-muted" style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>Última actualización: {new Date(fechaActualizacion).toLocaleString('es-UY')}</p>}
+        <p className="text-muted" style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>
+          Comandos pendientes: <strong>{comandosPendientes}</strong>
+          {ultimoHeartbeat ? ` · Último heartbeat: ${new Date(ultimoHeartbeat).toLocaleString('es-UY')}` : ' · Sin heartbeat aún'}
+          {fechaActualizacion ? ` · Config: ${new Date(fechaActualizacion).toLocaleString('es-UY')}` : ''}
+        </p>
       </div>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h3>Webhook de fichajes</h3>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
+        <h3>URLs para la PC del spa</h3>
+        <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
+          En el panel ApiPorteroSpa: URL base = origen de esta API (sin path), slug = <strong>{emisorSlug || '…'}</strong>, misma API Key.
+        </p>
+        <label className="text-muted" style={{ fontSize: '0.85rem' }}>Webhook fichajes (auto si usás base + slug)</label>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.35rem' }}>
           <input type="text" readOnly value={webhookUrl} style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.85rem' }} />
-          <button type="button" className="btn btn-sm btn-secondary" onClick={copyWebhook}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => copyText(webhookUrl, 'wh')}>{copied === 'wh' ? <Check size={14} /> : <Copy size={14} />}</button>
         </div>
-        {emisorSlug && <p className="text-muted" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>Emisor: <strong>{emisorSlug}</strong></p>}
+        <label className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.75rem', display: 'block' }}>Endpoint agente (pull)</label>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.35rem' }}>
+          <input type="text" readOnly value={agentPullUrl} style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.85rem' }} />
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => copyText(agentPullUrl, 'ag')}>{copied === 'ag' ? <Check size={14} /> : <Copy size={14} />}</button>
+        </div>
       </div>
 
       <div className="card">
-        <h3>Acciones del portero</h3>
+        <h3>Acciones</h3>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando || !form.habilitado}><RefreshCw size={16} /> {sincronizando ? 'Sincronizando...' : 'Sincronizar socios activos'}</button>
-          <button type="button" className="btn btn-secondary" onClick={abrirPuerta} disabled={abriendo || !form.habilitado}><DoorOpen size={16} /> {abriendo ? 'Enviando...' : 'Abrir puerta'}</button>
+          <button type="button" className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando || !form.habilitado}><RefreshCw size={16} /> {sincronizando ? 'Encolando...' : 'Sincronizar socios activos'}</button>
+          <button type="button" className="btn btn-secondary" onClick={abrirPuerta} disabled={abriendo || !form.habilitado}><DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}</button>
         </div>
         {syncResult && syncResult.errores.length > 0 && (
           <div className="alert alert-error" style={{ marginTop: '1rem' }}>

@@ -1,0 +1,47 @@
+========================================
+  ApiPorteroSpa — paquete para la PC del spa
+  Modo PULL (sin abrir puertos / sin túnel)
+========================================
+
+COMO INSTALAR (una sola vez)
+----------------------------
+1) Copiá TODA esta carpeta a la PC del spa
+2) Doble clic en:  Instalar.bat
+3) Queda un icono en el Escritorio: ApiPorteroSpa
+
+
+CONFIGURAR (orden recomendado)
+------------------------------
+A) En GestionSpa (web) → Configuración → Portero:
+   - Habilitar
+   - API Key (inventá una clave larga)
+   - deviceSn del ZKTeco
+   - webhookSecret (opcional pero recomendado)
+   - Guardar
+   - Anotá el slug del emisor y la URL pública de la API
+     (ej: https://tu-api.up.railway.app)
+
+B) En el panel ApiPorteroSpa (icono del Escritorio):
+   - API Key = la misma
+   - URL base GestionSpa = https://tu-api.up.railway.app
+   - Slug del emisor = el del spa
+   - Poll segundos = 10
+   - Webhook Secret = el mismo
+   - Guardar → Iniciar servicio
+
+C) En el portero ZKTeco (menú Cloud):
+   - IP = la de esta PC (la muestra el panel)
+   - Puerto = 8081
+
+
+COMO USAR TODOS LOS DIAS
+------------------------
+Doble clic en el icono ApiPorteroSpa → Iniciar servicio
+(La PC debe tener internet; ella consulta sola a GestionSpa)
+
+
+IMPORTANTE
+----------
+- No hace falta abrir el puerto 5000 a internet
+- No borres esta carpeta (el icono apunta acá)
+- Si movés la carpeta, volvé a ejecutar Instalar.bat

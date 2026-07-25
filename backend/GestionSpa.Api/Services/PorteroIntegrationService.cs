@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
@@ -12,12 +11,15 @@ public interface IPorteroIntegrationService
     Task<EmisorPorteroConfig?> GetConfigAsync(int emisorId);
     Task<PorteroConfigDto> GetConfigDtoAsync(int emisorId, string emisorSlug, string? apiPublicBaseUrl);
     Task<PorteroConfigDto> SaveConfigAsync(int emisorId, string emisorSlug, GuardarPorteroConfigDto dto, string? apiPublicBaseUrl);
-    Task<PorteroPruebaConexionDto> TestConnectionAsync(EmisorPorteroConfig config);
+    Task<PorteroPruebaConexionDto> TestConnectionAsync(int emisorId);
     Task<PorteroSincronizacionDto> SyncAllActiveSociosAsync(int emisorId);
     Task TrySyncSocioAsync(Socio socio);
     Task TryRemoveSocioAsync(Socio socio);
     Task ProcessAccessWebhookAsync(string emisorSlug, PorteroWebhookPayload payload);
-    Task<PorteroAccionDto> AbrirPuertaAsync(EmisorPorteroConfig config);
+    Task<PorteroAccionDto> AbrirPuertaAsync(int emisorId);
+    Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50);
+    Task AckComandoAsync(string emisorSlug, string apiKey, long comandoId, PorteroAgentAckDto ack);
+    Task HeartbeatAsync(string emisorSlug, string apiKey, PorteroAgentHeartbeatDto? dto);
 }
 
 public class PorteroWebhookPayload
@@ -28,10 +30,13 @@ public class PorteroWebhookPayload
 
 public class PorteroIntegrationService(
     AppDbContext db,
-    IHttpClientFactory httpClientFactory,
     ILogger<PorteroIntegrationService> logger) : IPorteroIntegrationService
 {
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
 
     public async Task<EmisorPorteroConfig?> GetConfigAsync(int emisorId) =>
         await db.EmisorPorteroConfigs.FirstOrDefaultAsync(c => c.EmisorId == emisorId);
@@ -39,7 +44,10 @@ public class PorteroIntegrationService(
     public async Task<PorteroConfigDto> GetConfigDtoAsync(int emisorId, string emisorSlug, string? apiPublicBaseUrl)
     {
         var config = await GetConfigAsync(emisorId);
-        return MapConfigDto(config, emisorSlug, apiPublicBaseUrl);
+        var pendientes = await db.PorteroComandos.CountAsync(c =>
+            c.EmisorId == emisorId &&
+            (c.Estado == PorteroComandoEstado.Pendiente || c.Estado == PorteroComandoEstado.Procesando));
+        return MapConfigDto(config, emisorSlug, apiPublicBaseUrl, pendientes);
     }
 
     public async Task<PorteroConfigDto> SaveConfigAsync(int emisorId, string emisorSlug, GuardarPorteroConfigDto dto, string? apiPublicBaseUrl)
@@ -52,7 +60,8 @@ public class PorteroIntegrationService(
         }
 
         config.Habilitado = dto.Habilitado;
-        config.ApiUrl = dto.ApiUrl.Trim().TrimEnd('/');
+        // ApiUrl queda como nota opcional (modo pull: el agente llama a GestionSpa).
+        config.ApiUrl = string.IsNullOrWhiteSpace(dto.ApiUrl) ? "pull" : dto.ApiUrl.Trim().TrimEnd('/');
         config.ApiKey = dto.ApiKey.Trim();
         config.WebhookSecret = string.IsNullOrWhiteSpace(dto.WebhookSecret) ? null : dto.WebhookSecret.Trim();
         config.DeviceSn = string.IsNullOrWhiteSpace(dto.DeviceSn) ? "7674222960189" : dto.DeviceSn.Trim();
@@ -60,22 +69,35 @@ public class PorteroIntegrationService(
         config.FechaActualizacion = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
-        return MapConfigDto(config, emisorSlug, apiPublicBaseUrl);
+        var pendientes = await db.PorteroComandos.CountAsync(c =>
+            c.EmisorId == emisorId &&
+            (c.Estado == PorteroComandoEstado.Pendiente || c.Estado == PorteroComandoEstado.Procesando));
+        return MapConfigDto(config, emisorSlug, apiPublicBaseUrl, pendientes);
     }
 
-    public async Task<PorteroPruebaConexionDto> TestConnectionAsync(EmisorPorteroConfig config)
+    public async Task<PorteroPruebaConexionDto> TestConnectionAsync(int emisorId)
     {
-        try
-        {
-            var health = await SendAsync<JsonElement>(config, HttpMethod.Get, "/api/health", auth: false);
-            var stats = await SendAsync<JsonElement>(config, HttpMethod.Get, "/api/stats");
-            var service = health.TryGetProperty("service", out var s) ? s.GetString() : "ApiPorteroSpa";
-            return new PorteroPruebaConexionDto(true, $"Conexión OK con {service}", stats);
-        }
-        catch (Exception ex)
-        {
-            return new PorteroPruebaConexionDto(false, ex.Message, null);
-        }
+        var config = await GetConfigAsync(emisorId);
+        if (config is null || !config.Habilitado)
+            return new PorteroPruebaConexionDto(false, "Portero no habilitado o sin configuración", null);
+
+        var pendientes = await db.PorteroComandos.CountAsync(c =>
+            c.EmisorId == emisorId && c.Estado == PorteroComandoEstado.Pendiente);
+
+        if (config.UltimoHeartbeatUtc is null)
+            return new PorteroPruebaConexionDto(false,
+                "Sin heartbeat del agente. En la PC del spa configurá la URL de GestionSpa y dejá ApiPorteroSpa iniciado.",
+                new { pendientes, modo = "pull" });
+
+        var age = DateTime.UtcNow - config.UltimoHeartbeatUtc.Value;
+        if (age > TimeSpan.FromMinutes(2))
+            return new PorteroPruebaConexionDto(false,
+                $"Agente sin contacto hace {(int)age.TotalMinutes} min. Revisá que ApiPorteroSpa esté corriendo e internet en la PC del spa.",
+                new { pendientes, ultimoHeartbeatUtc = config.UltimoHeartbeatUtc, modo = "pull" });
+
+        return new PorteroPruebaConexionDto(true,
+            $"Agente online (último contacto hace {(int)age.TotalSeconds} s). Comandos pendientes: {pendientes}.",
+            new { pendientes, ultimoHeartbeatUtc = config.UltimoHeartbeatUtc, modo = "pull" });
     }
 
     public async Task<PorteroSincronizacionDto> SyncAllActiveSociosAsync(int emisorId)
@@ -85,21 +107,11 @@ public class PorteroIntegrationService(
             return new PorteroSincronizacionDto(0, 0, 0, ["Portero no habilitado para este emisor"]);
 
         var socios = await db.Socios.Where(s => s.EmisorId == emisorId && s.Estado == EstadoSocio.Activo).ToListAsync();
-        var errores = new List<string>();
-        var ok = 0;
         foreach (var socio in socios)
-        {
-            try
-            {
-                await SyncSocioInternalAsync(socio, config);
-                ok++;
-            }
-            catch (Exception ex)
-            {
-                errores.Add($"{socio.NumeroSocio} {socio.Nombre}: {ex.Message}");
-            }
-        }
-        return new PorteroSincronizacionDto(socios.Count, ok, socios.Count - ok, errores);
+            await EnqueueUpsertSocioAsync(socio, config);
+
+        await db.SaveChangesAsync();
+        return new PorteroSincronizacionDto(socios.Count, socios.Count, 0, []);
     }
 
     public async Task TrySyncSocioAsync(Socio socio)
@@ -108,14 +120,8 @@ public class PorteroIntegrationService(
         if (config is null || !config.Habilitado || !config.SincronizarAutomatico) return;
         if (socio.Estado != EstadoSocio.Activo) return;
 
-        try
-        {
-            await SyncSocioInternalAsync(socio, config);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Error sincronizando socio {SocioId} con portero", socio.Id);
-        }
+        await EnqueueUpsertSocioAsync(socio, config);
+        await db.SaveChangesAsync();
     }
 
     public async Task TryRemoveSocioAsync(Socio socio)
@@ -123,16 +129,13 @@ public class PorteroIntegrationService(
         var config = await GetConfigAsync(socio.EmisorId);
         if (config is null || !config.Habilitado || !config.SincronizarAutomatico) return;
 
-        try
+        var pin = ToPorteroPin(socio);
+        await EnqueueAsync(socio.EmisorId, PorteroComandoTipo.DeleteSocio, $"delete:{pin}", new
         {
-            var pin = ToPorteroPin(socio);
-            await SendAsync<JsonElement>(config, HttpMethod.Delete, $"/api/socios/{Uri.EscapeDataString(pin)}",
-                body: new { device_sn = config.DeviceSn });
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Error dando de baja socio {SocioId} en portero", socio.Id);
-        }
+            cedula = pin,
+            device_sn = config.DeviceSn,
+        });
+        await db.SaveChangesAsync();
     }
 
     public async Task ProcessAccessWebhookAsync(string emisorSlug, PorteroWebhookPayload payload)
@@ -171,14 +174,82 @@ public class PorteroIntegrationService(
         await db.SaveChangesAsync();
     }
 
-    public async Task<PorteroAccionDto> AbrirPuertaAsync(EmisorPorteroConfig config)
+    public async Task<PorteroAccionDto> AbrirPuertaAsync(int emisorId)
     {
-        var result = await SendAsync<JsonElement>(config, HttpMethod.Post,
-            $"/api/dispositivos/{Uri.EscapeDataString(config.DeviceSn)}/abrir-puerta");
-        return new PorteroAccionDto("Comando de apertura encolado en el portero (~10 s)", result);
+        var config = await GetConfigAsync(emisorId);
+        if (config is null || !config.Habilitado)
+            throw new InvalidOperationException("Portero no habilitado");
+
+        await EnqueueAsync(emisorId, PorteroComandoTipo.AbrirPuerta, $"abrir:{DateTime.UtcNow.Ticks}", new
+        {
+            device_sn = config.DeviceSn,
+        });
+        await db.SaveChangesAsync();
+        return new PorteroAccionDto(
+            "Comando encolado. El agente en la PC del spa lo tomará en el próximo ciclo (unos segundos).",
+            new { modo = "pull" });
     }
 
-    private async Task SyncSocioInternalAsync(Socio socio, EmisorPorteroConfig config)
+    public async Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50)
+    {
+        var (emisor, config) = await RequireAgentAsync(emisorSlug, apiKey);
+        config.UltimoHeartbeatUtc = DateTime.UtcNow;
+
+        // Reclamar pendientes antiguos en Procesando (>5 min) como Pendiente de nuevo
+        var stale = DateTime.UtcNow.AddMinutes(-5);
+        var stuck = await db.PorteroComandos
+            .Where(c => c.EmisorId == emisor.Id && c.Estado == PorteroComandoEstado.Procesando && c.FechaCreacion < stale)
+            .ToListAsync();
+        foreach (var s in stuck)
+            s.Estado = PorteroComandoEstado.Pendiente;
+
+        var items = await db.PorteroComandos
+            .Where(c => c.EmisorId == emisor.Id && c.Estado == PorteroComandoEstado.Pendiente)
+            .OrderBy(c => c.FechaCreacion)
+            .Take(Math.Clamp(limit, 1, 100))
+            .ToListAsync();
+
+        foreach (var item in items)
+            item.Estado = PorteroComandoEstado.Procesando;
+
+        await db.SaveChangesAsync();
+
+        return items.Select(c => new PorteroAgentComandoDto(
+            c.Id,
+            TipoToString(c.Tipo),
+            JsonSerializer.Deserialize<object>(c.PayloadJson) ?? new { },
+            c.FechaCreacion)).ToList();
+    }
+
+    public async Task AckComandoAsync(string emisorSlug, string apiKey, long comandoId, PorteroAgentAckDto ack)
+    {
+        var (emisor, _) = await RequireAgentAsync(emisorSlug, apiKey);
+        var cmd = await db.PorteroComandos.FirstOrDefaultAsync(c => c.Id == comandoId && c.EmisorId == emisor.Id);
+        if (cmd is null) throw new InvalidOperationException("Comando no encontrado");
+
+        if (ack.Ok)
+        {
+            cmd.Estado = PorteroComandoEstado.Hecho;
+            cmd.UltimoError = null;
+        }
+        else
+        {
+            cmd.Estado = PorteroComandoEstado.Error;
+            cmd.UltimoError = ack.Error ?? "Error desconocido";
+        }
+        cmd.FechaProcesado = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task HeartbeatAsync(string emisorSlug, string apiKey, PorteroAgentHeartbeatDto? dto)
+    {
+        var (_, config) = await RequireAgentAsync(emisorSlug, apiKey);
+        config.UltimoHeartbeatUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        logger.LogDebug("Heartbeat portero emisor={Slug} version={Version}", emisorSlug, dto?.Version);
+    }
+
+    private async Task EnqueueUpsertSocioAsync(Socio socio, EmisorPorteroConfig config)
     {
         var pin = ToPorteroPin(socio);
         var nombre = $"{socio.Nombre} {socio.Apellido}".Trim();
@@ -186,7 +257,7 @@ public class PorteroIntegrationService(
             ? Math.Max(1, (int)(socio.FechaVencimiento.Value.Date - DateTime.UtcNow.Date).TotalDays)
             : 365;
 
-        await SendAsync<JsonElement>(config, HttpMethod.Post, "/api/socios", new
+        await EnqueueAsync(socio.EmisorId, PorteroComandoTipo.UpsertSocio, $"upsert:{pin}", new
         {
             nombre,
             cedula = pin,
@@ -197,6 +268,45 @@ public class PorteroIntegrationService(
             valid_days = validDays,
             device_sn = config.DeviceSn,
         });
+    }
+
+    private async Task EnqueueAsync(int emisorId, PorteroComandoTipo tipo, string clave, object payload)
+    {
+        // Reemplaza pendientes/procesando con la misma clave (última gana)
+        var previos = await db.PorteroComandos
+            .Where(c => c.EmisorId == emisorId
+                        && c.ClaveIdempotencia == clave
+                        && (c.Estado == PorteroComandoEstado.Pendiente || c.Estado == PorteroComandoEstado.Procesando))
+            .ToListAsync();
+        foreach (var p in previos)
+            p.Estado = PorteroComandoEstado.Hecho;
+
+        db.PorteroComandos.Add(new PorteroComando
+        {
+            EmisorId = emisorId,
+            Tipo = tipo,
+            ClaveIdempotencia = clave,
+            PayloadJson = JsonSerializer.Serialize(payload, JsonOpts),
+            Estado = PorteroComandoEstado.Pendiente,
+            FechaCreacion = DateTime.UtcNow,
+        });
+    }
+
+    private async Task<(Emisor Emisor, EmisorPorteroConfig Config)> RequireAgentAsync(string emisorSlug, string apiKey)
+    {
+        var emisor = await db.Emisores
+            .Include(e => e.PorteroConfig)
+            .FirstOrDefaultAsync(e => e.Slug == emisorSlug && e.Activo)
+            ?? throw new UnauthorizedAccessException("Emisor no encontrado");
+
+        var config = emisor.PorteroConfig
+            ?? throw new UnauthorizedAccessException("Portero no configurado");
+
+        if (!config.Habilitado || string.IsNullOrWhiteSpace(config.ApiKey) ||
+            !string.Equals(config.ApiKey, apiKey, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("API key inválida");
+
+        return (emisor, config);
     }
 
     private async Task<Socio?> FindSocioByPinAsync(int emisorId, string pin)
@@ -216,46 +326,29 @@ public class PorteroIntegrationService(
         return socio.NumeroSocio;
     }
 
-    private async Task<T> SendAsync<T>(EmisorPorteroConfig config, HttpMethod method, string path, object? body = null, bool auth = true)
+    private static string TipoToString(PorteroComandoTipo tipo) => tipo switch
     {
-        var client = httpClientFactory.CreateClient("Portero");
-        var url = $"{config.ApiUrl.TrimEnd('/')}{path}";
-        using var request = new HttpRequestMessage(method, url);
-        if (auth)
-            request.Headers.Add("X-API-Key", config.ApiKey);
-
-        if (body is not null)
-        {
-            request.Content = new StringContent(JsonSerializer.Serialize(body, JsonOpts), Encoding.UTF8, "application/json");
-        }
-
-        var response = await client.SendAsync(request);
-        var text = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"ApiPortero {((int)response.StatusCode)}: {text}");
-
-        if (string.IsNullOrWhiteSpace(text))
-            return default!;
-
-        if (typeof(T) == typeof(JsonElement))
-            return (T)(object)JsonSerializer.Deserialize<JsonElement>(text);
-
-        return JsonSerializer.Deserialize<T>(text, JsonOpts)
-            ?? throw new InvalidOperationException("Respuesta vacía de ApiPortero");
-    }
+        PorteroComandoTipo.UpsertSocio => "upsert_socio",
+        PorteroComandoTipo.DeleteSocio => "delete_socio",
+        PorteroComandoTipo.AbrirPuerta => "abrir_puerta",
+        _ => tipo.ToString().ToLowerInvariant(),
+    };
 
     private static string? GetString(JsonElement data, string name) =>
         data.TryGetProperty(name, out var prop) ? prop.GetString() : null;
 
-    private static PorteroConfigDto MapConfigDto(EmisorPorteroConfig? config, string emisorSlug, string? apiPublicBaseUrl)
+    private static PorteroConfigDto MapConfigDto(EmisorPorteroConfig? config, string emisorSlug, string? apiPublicBaseUrl, int pendientes)
     {
         var baseUrl = (apiPublicBaseUrl ?? "").TrimEnd('/');
         var webhookUrl = string.IsNullOrEmpty(baseUrl)
             ? $"/api/webhooks/portero/{emisorSlug}"
             : $"{baseUrl}/api/webhooks/portero/{emisorSlug}";
+        var agentPullUrl = string.IsNullOrEmpty(baseUrl)
+            ? $"/api/portero/agent/{emisorSlug}"
+            : $"{baseUrl}/api/portero/agent/{emisorSlug}";
 
         if (config is null)
-            return new PorteroConfigDto(false, "http://localhost:5000", "", null, "7674222960189", true, webhookUrl, null);
+            return new PorteroConfigDto(false, "pull", "", null, "7674222960189", true, webhookUrl, null, agentPullUrl, null, 0);
 
         return new PorteroConfigDto(
             config.Habilitado,
@@ -265,6 +358,9 @@ public class PorteroIntegrationService(
             config.DeviceSn,
             config.SincronizarAutomatico,
             webhookUrl,
-            config.FechaActualizacion);
+            config.FechaActualizacion,
+            agentPullUrl,
+            config.UltimoHeartbeatUtc,
+            pendientes);
     }
 }

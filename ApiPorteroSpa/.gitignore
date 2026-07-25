@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.pyc
+
+# Datos locales
+portero_spa.db
+*.db-journal
+.env
+.env.*
+
+# Logs de runtime
+logs/
+
+# Binarios / herramientas locales
+tools/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
