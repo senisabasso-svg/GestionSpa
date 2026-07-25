@@ -34,7 +34,9 @@ PORTERO_TCP_PORT=8081
 PORTERO_DATA_DIR=/data
 ```
 
-`PORT` lo pone Railway solo (HTTP/REST).
+**No** definas `PORT=8081` a mano (choca con el TCP).  
+HTTP domain → **8080**, TCP Proxy → **8081**.  
+Si hace falta forzar REST: `PORTERO_API_PORT=8080`.
 
 ## 4. HTTP público (REST + panel de logs)
 

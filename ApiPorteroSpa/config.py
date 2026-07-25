@@ -32,12 +32,19 @@ _load_dotenv()
 _DATA_DIR = os.environ.get('PORTERO_DATA_DIR', _BASE_DIR)
 os.makedirs(_DATA_DIR, exist_ok=True)
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == '':
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 # SERVIDOR TCP (Railway TCP Proxy apunta a este puerto interno)
 SERVER_HOST = '0.0.0.0'
-try:
-    SERVER_PORT = int(os.environ.get('PORTERO_TCP_PORT', '8081'))
-except ValueError:
-    SERVER_PORT = 8081
+SERVER_PORT = _env_int('PORTERO_TCP_PORT', 8081)
 MAX_CONNECTIONS = 10
 BUFFER_SIZE = 4096
 SOCKET_TIMEOUT = 300  # 5 minutos
@@ -53,12 +60,33 @@ LOG_LEVEL = 'INFO'
 for _d in (LOG_DIR, RAW_LOG_DIR, SESSION_LOG_DIR):
     os.makedirs(_d, exist_ok=True)
 
-# API REST — en Railway usa $PORT; en local 5000
+# API REST — Railway inyecta PORT; local default 5000.
+# Nunca compartir puerto con el TCP del ZKTeco (si PORT=8081 choca con PORTERO_TCP_PORT).
 API_HOST = '0.0.0.0'
-try:
-    API_PORT = int(os.environ.get('PORT') or os.environ.get('PORTERO_API_PORT') or '5000')
-except ValueError:
+_port_railway = os.environ.get('PORT')
+_port_explicit = os.environ.get('PORTERO_API_PORT')
+if _port_explicit not in (None, ''):
+    API_PORT = _env_int('PORTERO_API_PORT', 8080)
+elif _port_railway not in (None, ''):
+    API_PORT = _env_int('PORT', 8080)
+else:
     API_PORT = 5000
+
+if API_PORT == SERVER_PORT:
+    # Caso típico en Railway: alguien puso PORT=8081 o el target HTTP quedó en 8081.
+    # Priorizamos TCP en PORTERO_TCP_PORT (proxy ZKTeco) y movemos REST a 8080.
+    _fallback = _env_int('PORTERO_API_PORT', 8080)
+    if _fallback == SERVER_PORT:
+        _fallback = 8080 if SERVER_PORT != 8080 else 8082
+    print(
+        f"[config] Puerto en conflicto: REST y TCP ambos en {SERVER_PORT}. "
+        f"REST pasa a {_fallback}. En Railway: HTTP domain -> {_fallback}, "
+        f"TCP Proxy -> {SERVER_PORT}. No definas PORT={SERVER_PORT}."
+    )
+    API_PORT = _fallback
+    # Para que healthchecks/proxies que lean PORT vean el puerto real del REST
+    os.environ['PORT'] = str(API_PORT)
+
 API_KEY = os.environ.get('PORTERO_API_KEY', 'portero-dev-key-change-me')
 WEBHOOK_SECRET = os.environ.get('PORTERO_WEBHOOK_SECRET', '')
 
