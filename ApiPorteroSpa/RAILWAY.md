@@ -36,11 +36,19 @@ PORTERO_DATA_DIR=/data
 
 `PORT` lo pone Railway solo (HTTP/REST).
 
-## 4. HTTP público (REST)
+## 4. HTTP público (REST + panel de logs)
 
-Settings → Networking → Generate domain  
-Ej: `https://apiporterospa-production-xxxx.up.railway.app`  
-Health: `GET /api/health`
+Settings → Networking → Generate domain → puerto **`$PORT`** (ej. 8080), **no** 8081.
+
+Ej: `https://apiporterospa-production.up.railway.app`
+
+| URL | Uso |
+|-----|-----|
+| `/panel` | Panel web de logs en vivo (pedí la `PORTERO_API_KEY`) |
+| `/api/health` | Health JSON (público) |
+| `/api/logs` | Últimas líneas (header `X-API-Key`) |
+
+El panel va en el mismo Docker; no hace falta otro servicio.
 
 ## 5. TCP Proxy (para el ZKTeco)
 

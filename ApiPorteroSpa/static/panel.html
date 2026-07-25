@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ApiPorteroSpa — Panel</title>
+  <style>
+    :root {
+      --bg: #0c1210;
+      --panel: #121a17;
+      --line: #1e2c26;
+      --text: #e6f0ea;
+      --muted: #8aa396;
+      --accent: #3d9b6e;
+      --warn: #d4a017;
+      --bad: #e05a5a;
+      --ok: #5ecf8e;
+      --font: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background:
+        radial-gradient(900px 420px at 10% -10%, #1a3328 0%, transparent 55%),
+        radial-gradient(700px 380px at 100% 0%, #152028 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .brand strong {
+      font-size: 1.15rem;
+      letter-spacing: 0.02em;
+      font-weight: 650;
+    }
+    .brand span { color: var(--muted); font-size: 0.85rem; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    input[type="password"], input[type="text"] {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: var(--font);
+      font-size: 0.85rem;
+      min-width: 200px;
+    }
+    button {
+      background: var(--accent);
+      color: #04140c;
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-weight: 650;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 0.85rem;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .stats b { color: var(--text); font-weight: 600; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(94,207,142,.15); }
+    .dot.bad { background: var(--bad); }
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 12px 16px 16px;
+    }
+    .log-wrap {
+      flex: 1;
+      min-height: 280px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: auto;
+      padding: 12px 14px;
+      font-family: var(--font);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .line { white-space: pre-wrap; word-break: break-word; }
+    .line .lvl { color: var(--muted); margin-right: 8px; }
+    .line.ERROR .lvl, .line.CRITICAL .lvl { color: var(--bad); }
+    .line.WARNING .lvl { color: var(--warn); }
+    .line.INFO .lvl { color: var(--accent); }
+    .line.DEBUG .lvl { color: #6a8a9a; }
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .auth-msg { color: var(--bad); font-size: 0.85rem; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <strong>ApiPorteroSpa</strong>
+      <span>Panel de logs · mismo contenedor Docker</span>
+    </div>
+    <div class="controls">
+      <input id="apiKey" type="password" placeholder="X-API-Key (PORTERO_API_KEY)" autocomplete="off" />
+      <button id="btnSave" type="button">Guardar key</button>
+      <button id="btnClear" class="ghost" type="button">Limpiar vista</button>
+      <button id="btnPause" class="ghost" type="button">Pausar</button>
+    </div>
+  </header>
+  <div class="stats">
+    <span class="pill"><span id="liveDot" class="dot"></span> <span id="liveLabel">Sin conectar</span></span>
+    <span>Líneas buffer: <b id="statTotal">—</b></span>
+    <span>Servicio: <b id="statService">—</b></span>
+    <span>SN: <b id="statSn">—</b></span>
+    <span>Auto-refresh: <b>2s</b></span>
+  </div>
+  <main>
+    <div id="authMsg" class="auth-msg"></div>
+    <div id="log" class="log-wrap" aria-live="polite"></div>
+    <p class="hint">URL: <code>/panel</code> · API: <code>/api/logs</code> · Health público: <code>/api/health</code></p>
+  </main>
+  <script>
+    const KEY = "portero_api_key";
+    const logEl = document.getElementById("log");
+    const apiKeyEl = document.getElementById("apiKey");
+    const authMsg = document.getElementById("authMsg");
+    const liveDot = document.getElementById("liveDot");
+    const liveLabel = document.getElementById("liveLabel");
+    let cursor = 0;
+    let paused = false;
+    let stickBottom = true;
+
+    apiKeyEl.value = localStorage.getItem(KEY) || "";
+
+    logEl.addEventListener("scroll", () => {
+      const near = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+      stickBottom = near;
+    });
+
+    document.getElementById("btnSave").onclick = () => {
+      localStorage.setItem(KEY, apiKeyEl.value.trim());
+      cursor = 0;
+      logEl.innerHTML = "";
+      authMsg.textContent = "";
+      tick();
+    };
+    document.getElementById("btnClear").onclick = () => {
+      logEl.innerHTML = "";
+    };
+    document.getElementById("btnPause").onclick = (e) => {
+      paused = !paused;
+      e.target.textContent = paused ? "Reanudar" : "Pausar";
+    };
+
+    function levelClass(level) {
+      return (level || "INFO").toUpperCase();
+    }
+
+    function appendLines(lines) {
+      const frag = document.createDocumentFragment();
+      for (const row of lines) {
+        const div = document.createElement("div");
+        const lvl = levelClass(row.level);
+        div.className = "line " + lvl;
+        const ts = row.ts ? row.ts + " " : "";
+        div.innerHTML = `<span class="lvl">${escapeHtml(ts + lvl)}</span>${escapeHtml(row.msg || "")}`;
+        frag.appendChild(div);
+      }
+      logEl.appendChild(frag);
+      while (logEl.childNodes.length > 1500) {
+        logEl.removeChild(logEl.firstChild);
+      }
+      if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    async function tick() {
+      if (paused) return;
+      const key = apiKeyEl.value.trim() || localStorage.getItem(KEY) || "";
+      try {
+        const h = await fetch("/api/health");
+        if (h.ok) {
+          const hj = await h.json();
+          document.getElementById("statService").textContent = hj.service || "ok";
+          document.getElementById("statSn").textContent = hj.device_default_sn || "—";
+        }
+        if (!key) {
+          liveDot.className = "dot";
+          liveLabel.textContent = "Ingresá la API key";
+          return;
+        }
+        const url = cursor > 0
+          ? `/api/logs?since=${cursor}&limit=200`
+          : `/api/logs?limit=400`;
+        const r = await fetch(url, { headers: { "X-API-Key": key } });
+        if (r.status === 401) {
+          liveDot.className = "dot bad";
+          liveLabel.textContent = "API key inválida";
+          authMsg.textContent = "Key incorrecta. Revisá PORTERO_API_KEY en Railway.";
+          return;
+        }
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        authMsg.textContent = "";
+        const data = await r.json();
+        document.getElementById("statTotal").textContent = data.total ?? "—";
+        if (data.lines && data.lines.length) appendLines(data.lines);
+        if (typeof data.next === "number") cursor = data.next;
+        liveDot.className = "dot ok";
+        liveLabel.textContent = "En vivo";
+      } catch (e) {
+        liveDot.className = "dot bad";
+        liveLabel.textContent = "Sin conexión";
+      }
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  </script>
+</body>
+</html>

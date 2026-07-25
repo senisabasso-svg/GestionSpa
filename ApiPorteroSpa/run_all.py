@@ -21,14 +21,19 @@ logger = logging.getLogger(__name__)
 
 def main():
     from config import AGENT_ENABLED, AGENT_EMISOR_SLUG, AGENT_POLL_SECONDS, GESTION_BASE_URL
+    from log_buffer import install as install_log_buffer, install_stdio_tee
     from servidor_portero import DoorAccessServer
     from api_rest import run_api
     from agent_poller import start_agent_poller
+
+    install_log_buffer()
+    install_stdio_tee()
 
     print(f"""
 {Colors.HEADER}ApiPorteroSpa - Modo completo{Colors.ENDC}
   Portero TCP: {SERVER_HOST}:{SERVER_PORT}
   API REST:    http://{API_HOST}:{API_PORT}
+  Panel web:   http://{API_HOST}:{API_PORT}/panel
   Agente pull: {'ON -> ' + GESTION_BASE_URL + ' /' + AGENT_EMISOR_SLUG + ' cada ' + str(AGENT_POLL_SECONDS) + 's' if AGENT_ENABLED else 'OFF (configurá Gestion URL + slug)'}
 """)
 

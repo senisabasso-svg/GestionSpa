@@ -5,7 +5,9 @@ API REST para que otros backends se conecten al portero.
 Autenticacion: header X-API-Key
 
 Endpoints:
+  GET  /panel          (UI logs)
   GET  /api/health
+  GET  /api/logs       (X-API-Key)
   GET  /api/stats
   GET  /api/socios
   POST /api/socios
@@ -20,12 +22,14 @@ Endpoints:
   POST /api/comandos
 """
 import logging
+import os
 from functools import wraps
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, redirect
 
 from config import API_HOST, API_PORT, API_KEY
 from database import Database
+from log_buffer import get_lines as get_log_lines, clear as clear_log_buffer
 from socio_service import (
     crear_socio, actualizar_socio, eliminar_socio,
     abrir_puerta, sincronizar_fichajes, encolar_comando,
@@ -34,6 +38,8 @@ from webhook_client import notify_socio_queued
 from zkteco_protocol import DEFAULT_DEVICE_SN
 
 logger = logging.getLogger(__name__)
+
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 app = Flask(__name__)
 db = Database()
@@ -56,6 +62,31 @@ def health():
         'service': 'ApiPorteroSpa',
         'device_default_sn': DEFAULT_DEVICE_SN,
     })
+
+
+@app.route('/')
+def root():
+    return redirect('/panel')
+
+
+@app.route('/panel')
+def panel():
+    return send_from_directory(_STATIC_DIR, 'panel.html')
+
+
+@app.route('/api/logs', methods=['GET'])
+@require_api_key
+def api_logs():
+    limit = request.args.get('limit', 300, type=int)
+    since = request.args.get('since', 0, type=int)
+    return jsonify(get_log_lines(limit=limit, since=since))
+
+
+@app.route('/api/logs', methods=['DELETE'])
+@require_api_key
+def api_logs_clear():
+    clear_log_buffer()
+    return jsonify({'ok': True})
 
 
 @app.route('/api/stats', methods=['GET'])
