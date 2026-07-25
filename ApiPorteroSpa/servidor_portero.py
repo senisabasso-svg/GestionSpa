@@ -338,10 +338,20 @@ class DoorAccessServer:
 
         except OSError as e:
             logger.error(f"Error al iniciar servidor: {e}")
-            if e.errno == 48 or e.errno == 98:
-                print(f"\n{Colors.FAIL}Error: El puerto {self.port} ya esta en uso{Colors.ENDC}")
-                print(f"{Colors.WARNING}Windows: netstat -ano | findstr :{self.port}{Colors.ENDC}")
-            sys.exit(1)
+            winerr = getattr(e, 'winerror', None)
+            if e.errno in (48, 98) or winerr in (10013, 10048):
+                print(f"\n{Colors.FAIL}Error: No se pudo abrir el puerto TCP {self.port}{Colors.ENDC}")
+                print(f"{Colors.WARNING}Causas comunes en Windows:{Colors.ENDC}")
+                print(f"  - Puerto reservado por Hyper-V / excluidos")
+                print(f"  - Otro programa usando el puerto")
+                print(f"  - Falta permiso (proba como Administrador)")
+                print(f"{Colors.WARNING}Solucion rapida: en el panel cambia Puerto TCP a 9077,{Colors.ENDC}")
+                print(f"{Colors.WARNING}guarda, reinicia el servicio y poné 9077 en el Cloud del ZKTeco.{Colors.ENDC}")
+                print(f"{Colors.WARNING}Diagnostico: netstat -ano | findstr :{self.port}{Colors.ENDC}")
+                print(f"{Colors.WARNING}Rangos reservados: netsh interface ipv4 show excludedportrange protocol=tcp{Colors.ENDC}")
+            # No mates todo el proceso: la REST + agente pull pueden seguir.
+            # (run_all arranca TCP en hilo daemon; si hacemos sys.exit acá corta todo)
+            return
 
     def handle_client(self, client_socket, addr):
         """Maneja la conexion de un dispositivo terminal"""

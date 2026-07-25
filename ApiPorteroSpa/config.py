@@ -28,25 +28,37 @@ def _load_dotenv(path: str = _ENV_FILE) -> None:
 
 _load_dotenv()
 
-# SERVIDOR TCP
-SERVER_HOST = '0.0.0.0'  # Escucha en todas las interfaces
-SERVER_PORT = 8081
+# Datos persistentes (en Railway montá un Volume en /data)
+_DATA_DIR = os.environ.get('PORTERO_DATA_DIR', _BASE_DIR)
+os.makedirs(_DATA_DIR, exist_ok=True)
+
+# SERVIDOR TCP (Railway TCP Proxy apunta a este puerto interno)
+SERVER_HOST = '0.0.0.0'
+try:
+    SERVER_PORT = int(os.environ.get('PORTERO_TCP_PORT', '8081'))
+except ValueError:
+    SERVER_PORT = 8081
 MAX_CONNECTIONS = 10
 BUFFER_SIZE = 4096
 SOCKET_TIMEOUT = 300  # 5 minutos
 
 # BASE DE DATOS
-DB_PATH = os.path.join(_BASE_DIR, 'portero_spa.db')
+DB_PATH = os.path.join(_DATA_DIR, 'portero_spa.db')
 
 # LOGGING
-LOG_DIR = os.path.join(_BASE_DIR, 'logs')
+LOG_DIR = os.path.join(_DATA_DIR, 'logs')
 RAW_LOG_DIR = os.path.join(LOG_DIR, 'raw')
 SESSION_LOG_DIR = os.path.join(LOG_DIR, 'sessions')
 LOG_LEVEL = 'INFO'
+for _d in (LOG_DIR, RAW_LOG_DIR, SESSION_LOG_DIR):
+    os.makedirs(_d, exist_ok=True)
 
-# API REST (para otros backends)
+# API REST — en Railway usa $PORT; en local 5000
 API_HOST = '0.0.0.0'
-API_PORT = 5000
+try:
+    API_PORT = int(os.environ.get('PORT') or os.environ.get('PORTERO_API_PORT') or '5000')
+except ValueError:
+    API_PORT = 5000
 API_KEY = os.environ.get('PORTERO_API_KEY', 'portero-dev-key-change-me')
 WEBHOOK_SECRET = os.environ.get('PORTERO_WEBHOOK_SECRET', '')
 

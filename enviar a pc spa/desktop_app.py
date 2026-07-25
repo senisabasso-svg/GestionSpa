@@ -91,6 +91,7 @@ def write_env_file(values: dict[str, str], path: Path = ENV_FILE) -> None:
         f"PORTERO_GESTION_BASE_URL={values.get('PORTERO_GESTION_BASE_URL', '')}",
         f"PORTERO_EMISOR_SLUG={values.get('PORTERO_EMISOR_SLUG', '')}",
         f"PORTERO_POLL_SECONDS={values.get('PORTERO_POLL_SECONDS', '10')}",
+        f"PORTERO_TCP_PORT={values.get('PORTERO_TCP_PORT', '8081')}",
         f"PORTERO_WEBHOOK_URL={values.get('PORTERO_WEBHOOK_URL', '')}",
         f"PORTERO_WEBHOOK_SECRET={values.get('PORTERO_WEBHOOK_SECRET', '')}",
         "",
@@ -109,6 +110,7 @@ def load_settings() -> dict[str, str]:
         "PORTERO_GESTION_BASE_URL": pick("PORTERO_GESTION_BASE_URL"),
         "PORTERO_EMISOR_SLUG": pick("PORTERO_EMISOR_SLUG"),
         "PORTERO_POLL_SECONDS": pick("PORTERO_POLL_SECONDS", "10"),
+        "PORTERO_TCP_PORT": pick("PORTERO_TCP_PORT", str(SERVER_PORT)),
         "PORTERO_WEBHOOK_URL": pick("PORTERO_WEBHOOK_URL"),
         "PORTERO_WEBHOOK_SECRET": pick("PORTERO_WEBHOOK_SECRET"),
     }
@@ -141,6 +143,7 @@ class PorteroDesktopApp:
         self.var_gestion_url = tk.StringVar(value=self._settings["PORTERO_GESTION_BASE_URL"])
         self.var_emisor_slug = tk.StringVar(value=self._settings["PORTERO_EMISOR_SLUG"])
         self.var_poll_seconds = tk.StringVar(value=self._settings["PORTERO_POLL_SECONDS"])
+        self.var_tcp_port = tk.StringVar(value=self._settings["PORTERO_TCP_PORT"])
         self.var_webhook_url = tk.StringVar(value=self._settings["PORTERO_WEBHOOK_URL"])
         self.var_webhook_secret = tk.StringVar(value=self._settings["PORTERO_WEBHOOK_SECRET"])
 
@@ -192,7 +195,7 @@ class PorteroDesktopApp:
         webhook = self._current_webhook_url() or "(sin webhook URL — configurá abajo)"
         ttk.Label(left, text=f"Webhook: {webhook}", style="Muted.TLabel").pack(anchor=tk.W)
         self.hdr_net.configure(
-            text=f"IP LAN: {self._primary_ip}  ·  TCP :{SERVER_PORT}  ·  REST :{API_PORT}"
+            text=f"IP LAN: {self._primary_ip}  ·  TCP :{self._tcp_port()}  ·  REST :{API_PORT}"
         )
 
         right = ttk.Frame(header, style="Panel.TFrame")
@@ -313,14 +316,15 @@ class PorteroDesktopApp:
         row(1, "URL base GestionSpa", self.var_gestion_url)
         row(2, "Slug del emisor", self.var_emisor_slug)
         row(3, "Poll segundos", self.var_poll_seconds)
-        row(4, "Webhook URL (opcional)", self.var_webhook_url)
-        row(5, "Webhook Secret", self.var_webhook_secret)
+        row(4, "Puerto TCP portero", self.var_tcp_port)
+        row(5, "Webhook URL (opcional)", self.var_webhook_url)
+        row(6, "Webhook Secret", self.var_webhook_secret)
 
         ttk.Label(
             box,
             text=(
                 "URL base ejemplo: https://tu-api.up.railway.app  (sin /api al final)\n"
-                "Slug: el del spa en GestionSpa. Webhook se completa solo si dejás Webhook URL vacío."
+                "Si el puerto 8081 falla (WinError 10013), usa 9077 y el mismo en Cloud del ZKTeco."
             ),
             style="Muted.TLabel",
             justify=tk.LEFT,
@@ -332,22 +336,34 @@ class PorteroDesktopApp:
             poll_n = max(5, int(poll))
         except ValueError:
             poll_n = 10
+        try:
+            tcp_n = int(self.var_tcp_port.get().strip() or "8081")
+            if tcp_n < 1 or tcp_n > 65535:
+                raise ValueError("puerto fuera de rango")
+        except ValueError:
+            messagebox.showerror("Puerto TCP inválido", "Usá un número entre 1 y 65535 (ej. 8081 o 9077).")
+            return
         self._settings = {
             "PORTERO_API_KEY": self.var_api_key.get().strip() or "portero-dev-key-change-me",
             "PORTERO_GESTION_BASE_URL": self.var_gestion_url.get().strip().rstrip("/"),
             "PORTERO_EMISOR_SLUG": self.var_emisor_slug.get().strip(),
             "PORTERO_POLL_SECONDS": str(poll_n),
+            "PORTERO_TCP_PORT": str(tcp_n),
             "PORTERO_WEBHOOK_URL": self.var_webhook_url.get().strip(),
             "PORTERO_WEBHOOK_SECRET": self.var_webhook_secret.get().strip(),
         }
         self.var_api_key.set(self._settings["PORTERO_API_KEY"])
         self.var_poll_seconds.set(self._settings["PORTERO_POLL_SECONDS"])
+        self.var_tcp_port.set(self._settings["PORTERO_TCP_PORT"])
         try:
             write_env_file(self._settings)
         except OSError as exc:
             messagebox.showerror("No se pudo guardar", str(exc))
             return
         self._render_config_labels()
+        self.hdr_net.configure(
+            text=f"IP LAN: {self._primary_ip}  ·  TCP :{self._tcp_port()}  ·  REST :{API_PORT}"
+        )
         self._append_log(f"[{self._now()}] Configuración guardada en {ENV_FILE.name}\n", "ok")
         if self.process and self.process.poll() is None:
             messagebox.showinfo(
@@ -379,6 +395,12 @@ class PorteroDesktopApp:
     def _current_webhook_secret(self) -> str:
         return self.var_webhook_secret.get().strip()
 
+    def _tcp_port(self) -> int:
+        try:
+            return int(self.var_tcp_port.get().strip() or "8081")
+        except ValueError:
+            return SERVER_PORT
+
     def _build_config_panel(self, parent: ttk.Frame) -> None:
         box = ttk.Frame(parent, style="Panel.TFrame", padding=12)
         box.pack(fill=tk.X, pady=(0, 10))
@@ -408,7 +430,7 @@ class PorteroDesktopApp:
         btn_row_l = ttk.Frame(left, style="Panel.TFrame")
         btn_row_l.pack(anchor=tk.W)
         ttk.Button(btn_row_l, text="Copiar IP", command=lambda: self._copy(self._primary_ip, "IP")).pack(side=tk.LEFT)
-        ttk.Button(btn_row_l, text="Copiar puerto TCP", command=lambda: self._copy(str(SERVER_PORT), "Puerto TCP")).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(btn_row_l, text="Copiar puerto TCP", command=lambda: self._copy(str(self._tcp_port()), "Puerto TCP")).pack(side=tk.LEFT, padx=(6, 0))
 
         ttk.Label(right, text="En GestionSpa → Configuración → Portero", style="Panel.TLabel", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
         self.lbl_gestion = ttk.Label(right, style="Muted.TLabel", justify=tk.LEFT)
@@ -440,7 +462,7 @@ class PorteroDesktopApp:
         self.lbl_portero_ip.configure(
             text=(
                 f"Dirección / IP del servidor:  {self._primary_ip}\n"
-                f"Puerto:  {SERVER_PORT}\n"
+                f"Puerto:  {self._tcp_port()}\n"
                 f"Protocolo:  TCP (Cloud / ADMS)\n"
                 f"Otras IPs de esta PC:  {otras}\n"
                 f"SN equipo por defecto:  {DEFAULT_DEVICE_SN}"
@@ -469,7 +491,7 @@ class PorteroDesktopApp:
             else "Pull OFF (faltan URL GestionSpa o slug)"
         )
         return (
-            f"Portero físico → IP {self._primary_ip} puerto {SERVER_PORT}\n"
+            f"Portero físico → IP {self._primary_ip} puerto {self._tcp_port()}\n"
             f"{pull} | apiKey {self._current_api_key()} | deviceSn {DEFAULT_DEVICE_SN}"
         )
 
@@ -478,7 +500,7 @@ class PorteroDesktopApp:
         self._primary_ip = self._lan_ips[0]
         self._render_config_labels()
         self.hdr_net.configure(
-            text=f"IP LAN: {self._primary_ip}  ·  TCP :{SERVER_PORT}  ·  REST :{API_PORT}"
+            text=f"IP LAN: {self._primary_ip}  ·  TCP :{self._tcp_port()}  ·  REST :{API_PORT}"
         )
         self._append_log(f"[{self._now()}] IP actualizada: {self._primary_ip}\n", "meta")
 
@@ -492,7 +514,7 @@ class PorteroDesktopApp:
         text = (
             "=== PORTERO FÍSICO ===\n"
             f"IP servidor: {self._primary_ip}\n"
-            f"Puerto TCP: {SERVER_PORT}\n"
+            f"Puerto TCP: {self._tcp_port()}\n"
             f"SN: {DEFAULT_DEVICE_SN}\n\n"
             "=== GESTIONSPA (Configuración → Portero) ===\n"
             f"habilitado: true\n"
@@ -540,6 +562,7 @@ class PorteroDesktopApp:
         env["PORTERO_GESTION_BASE_URL"] = self._current_gestion_url()
         env["PORTERO_EMISOR_SLUG"] = self._current_emisor_slug()
         env["PORTERO_POLL_SECONDS"] = self.var_poll_seconds.get().strip() or "10"
+        env["PORTERO_TCP_PORT"] = str(self._tcp_port())
         env["PORTERO_WEBHOOK_URL"] = self._current_webhook_url()
         env["PORTERO_WEBHOOK_SECRET"] = self._current_webhook_secret()
 

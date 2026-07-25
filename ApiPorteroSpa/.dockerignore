@@ -1,0 +1,17 @@
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.env.*
+logs
+*.db
+*.db-journal
+.git
+tools
+portero-icon.ico
+*.md
+Instalar.bat
+Instalar.ps1
+Iniciar_Panel.bat
+desktop_app.py

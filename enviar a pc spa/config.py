@@ -28,9 +28,12 @@ def _load_dotenv(path: str = _ENV_FILE) -> None:
 
 _load_dotenv()
 
-# SERVIDOR TCP
+# SERVIDOR TCP (si 8081 da WinError 10013 en Windows, probá 9077 u otro libre)
 SERVER_HOST = '0.0.0.0'  # Escucha en todas las interfaces
-SERVER_PORT = 8081
+try:
+    SERVER_PORT = int(os.environ.get('PORTERO_TCP_PORT', '8081'))
+except ValueError:
+    SERVER_PORT = 8081
 MAX_CONNECTIONS = 10
 BUFFER_SIZE = 4096
 SOCKET_TIMEOUT = 300  # 5 minutos
