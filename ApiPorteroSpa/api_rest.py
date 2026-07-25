@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=_STATIC_DIR, static_url_path='/static')
 db = Database()
 
 
