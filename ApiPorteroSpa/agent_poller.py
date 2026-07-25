@@ -29,6 +29,8 @@ class GestionAgentPoller:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.db = Database()
+        self._cycles = 0
+        self._ok_streak = 0
 
     def start(self):
         if not AGENT_ENABLED:
@@ -39,12 +41,15 @@ class GestionAgentPoller:
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, name="gestion-agent", daemon=True)
         self._thread.start()
+        key_hint = (API_KEY[-4:] if API_KEY and len(API_KEY) >= 4 else "????")
         logger.info(
-            "Agente pull iniciado -> %s (emisor=%s, cada %ss)",
+            "Agente pull iniciado -> %s (emisor=%s, cada %ss, key=***%s)",
             GESTION_BASE_URL,
             AGENT_EMISOR_SLUG,
             AGENT_POLL_SECONDS,
+            key_hint,
         )
+        logger.info("Heartbeat URL: %s/heartbeat", self._base())
 
     def stop(self):
         self._stop.set()
@@ -62,13 +67,26 @@ class GestionAgentPoller:
     def _loop(self):
         while not self._stop.is_set():
             try:
-                self._heartbeat()
+                self._cycles += 1
+                hb_ok = self._heartbeat()
                 self._pull_and_run()
+                if hb_ok:
+                    self._ok_streak += 1
+                    # Primero + cada ~60s para no spamear
+                    if self._ok_streak == 1 or self._ok_streak % max(1, 60 // AGENT_POLL_SECONDS) == 0:
+                        logger.info(
+                            "Heartbeat OK -> GestionSpa (emisor=%s, ciclo=%s)",
+                            AGENT_EMISOR_SLUG,
+                            self._cycles,
+                        )
+                else:
+                    self._ok_streak = 0
             except Exception as ex:
+                self._ok_streak = 0
                 logger.error("Agente pull error: %s", ex)
             self._stop.wait(AGENT_POLL_SECONDS)
 
-    def _heartbeat(self):
+    def _heartbeat(self) -> bool:
         url = f"{self._base()}/heartbeat"
         try:
             r = requests.post(
@@ -77,10 +95,20 @@ class GestionAgentPoller:
                 json={"version": "ApiPorteroSpa-pull", "pendingLocalCommands": 0},
                 timeout=15,
             )
+            if r.status_code == 401:
+                logger.error(
+                    "Heartbeat 401: API key distinta a la de GestionSpa (emisor=%s). "
+                    "Igualá PORTERO_API_KEY con la key del panel Portero.",
+                    AGENT_EMISOR_SLUG,
+                )
+                return False
             if r.status_code >= 400:
                 logger.warning("Heartbeat HTTP %s: %s", r.status_code, r.text[:200])
+                return False
+            return True
         except requests.RequestException as ex:
             logger.warning("Heartbeat fallo: %s", ex)
+            return False
 
     def _pull_and_run(self):
         url = f"{self._base()}/comandos"

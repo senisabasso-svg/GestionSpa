@@ -141,8 +141,8 @@ export default function PorteroConfigSection() {
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h3>Portero biométrico (modo pull)</h3>
         <p className="text-muted" style={{ marginBottom: '1rem' }}>
-          GestionSpa encola altas, bajas y abrir puerta. La PC del spa (ApiPorteroSpa) consulta sola esta API.
-          No hace falta túnel ni abrir puertos hacia la PC.
+          GestionSpa encola altas, bajas y abrir puerta. ApiPorteroSpa (Railway o PC) consulta sola esta API cada N s.
+          «Probar agente» no llama al portero: solo mira si llegó un heartbeat reciente a esta base.
         </p>
 
         <label className="checkbox-label" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
