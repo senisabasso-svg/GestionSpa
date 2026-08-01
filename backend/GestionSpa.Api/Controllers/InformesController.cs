@@ -249,7 +249,6 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
         return BuildSociosCsvFile(items, fileName, includeCuotaMes: tipo == "activos");
     }
 
-    [Authorize(Roles = nameof(RolUsuario.SuperAdmin))]
     [HttpPost("sorteo")]
     public async Task<ActionResult<ResultadoSorteoDto>> GenerarSorteo()
     {
