@@ -11,6 +11,8 @@ interface AuthState {
   emisorId: number | null;
   emisorNombre: string | null;
   emisorSlug: string | null;
+  mostrarConfigPortero: boolean;
+  mostrarSorteo: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -18,7 +20,7 @@ interface AuthContextValue extends AuthState {
   isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  selectEmisor: (id: number, nombre: string, slug: string) => void;
+  selectEmisor: (id: number, nombre: string, slug: string, mostrarConfigPortero?: boolean, mostrarSorteo?: boolean) => void;
   clearEmisorSelection: () => void;
   activeEmisorId: number | null;
 }
@@ -30,7 +32,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function loadStored(): AuthState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) as AuthState : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AuthState;
+    return {
+      ...parsed,
+      mostrarConfigPortero: !!parsed.mostrarConfigPortero,
+      mostrarSorteo: !!parsed.mostrarSorteo,
+    };
   } catch {
     return null;
   }
@@ -70,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emisorId: res.emisorId,
       emisorNombre: res.emisorNombre,
       emisorSlug: res.emisorSlug,
+      mostrarConfigPortero: !!res.mostrarConfigPortero,
+      mostrarSorteo: !!res.mostrarSorteo,
     };
     setAuth(state);
     saveStored(state);
@@ -86,11 +96,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('gestionspa_emisor');
   }, []);
 
-  const selectEmisor = useCallback((id: number, nombre: string, slug: string) => {
+  const selectEmisor = useCallback((
+    id: number,
+    nombre: string,
+    slug: string,
+    mostrarConfigPortero = false,
+    mostrarSorteo = false,
+  ) => {
     setSelectedEmisorId(id);
     localStorage.setItem('gestionspa_emisor', String(id));
     if (auth) {
-      const updated = { ...auth, emisorNombre: nombre, emisorSlug: slug };
+      const updated = {
+        ...auth,
+        emisorNombre: nombre,
+        emisorSlug: slug,
+        mostrarConfigPortero,
+        mostrarSorteo,
+      };
       setAuth(updated);
       saveStored(updated);
     }
@@ -112,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     emisorId: auth?.emisorId ?? null,
     emisorNombre: auth?.emisorNombre ?? null,
     emisorSlug: auth?.emisorSlug ?? null,
+    mostrarConfigPortero: auth?.mostrarConfigPortero ?? false,
+    mostrarSorteo: auth?.mostrarSorteo ?? false,
     isAuthenticated: !!auth?.token,
     isSuperAdmin: auth?.rol === 'SuperAdmin',
     login,

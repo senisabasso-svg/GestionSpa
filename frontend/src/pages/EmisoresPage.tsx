@@ -15,6 +15,8 @@ const emptyForm = {
   adminPassword: '',
   adminPasswordConfirm: '',
   adminNombre: '',
+  mostrarConfigPortero: false,
+  mostrarSorteo: false,
 };
 
 const slugify = (s: string) => s.toLowerCase()
@@ -55,6 +57,8 @@ export default function EmisoresPage() {
       adminPassword: '',
       adminPasswordConfirm: '',
       adminNombre: '',
+      mostrarConfigPortero: !!e.mostrarConfigPortero,
+      mostrarSorteo: !!e.mostrarSorteo,
     });
     setErrors([]);
     setModal(true);
@@ -80,6 +84,8 @@ export default function EmisoresPage() {
           slug: form.slug.trim().toLowerCase(),
           ciudad: form.ciudad.trim() || null,
           departamento: form.departamento.trim() || null,
+          mostrarConfigPortero: form.mostrarConfigPortero,
+          mostrarSorteo: form.mostrarSorteo,
         });
       } else {
         await api.emisores.create({
@@ -90,6 +96,8 @@ export default function EmisoresPage() {
           adminEmail: form.adminEmail.trim().toLowerCase(),
           adminPassword: form.adminPassword,
           adminNombre: form.adminNombre.trim(),
+          mostrarConfigPortero: form.mostrarConfigPortero,
+          mostrarSorteo: form.mostrarSorteo,
         });
       }
       setModal(false);
@@ -222,7 +230,7 @@ export default function EmisoresPage() {
                 <td>{e.ciudad || '—'}</td>
                 <td><span className={`badge ${e.activo ? 'badge-success' : 'badge-neutral'}`}>{e.activo ? 'Activo' : 'Inactivo'}</span></td>
                 <td>
-                  <button className="btn btn-sm btn-primary" onClick={() => { selectEmisor(e.id, e.nombre, e.slug); navigate('/'); }}>Gestionar</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => { selectEmisor(e.id, e.nombre, e.slug, e.mostrarConfigPortero, e.mostrarSorteo); navigate('/'); }}>Gestionar</button>
                   <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => openEdit(e)}><Edit2 size={14} /></button>
                   <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => toggleActivo(e)}>
                     {e.activo ? 'Desactivar' : 'Activar'}
@@ -267,6 +275,27 @@ export default function EmisoresPage() {
                 <input className="form-control" value={form.departamento} onChange={e => setForm({ ...form, departamento: e.target.value })} />
               </div>
             </div>
+
+            <hr style={{ margin: '1.25rem 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+            <p style={{ margin: '0 0 0.75rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Funciones opcionales visibles para este emisor (no afectan datos existentes).
+            </p>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={form.mostrarConfigPortero}
+                onChange={e => setForm({ ...form, mostrarConfigPortero: e.target.checked })}
+              />
+              Mostrar config portero
+            </label>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
+              <input
+                type="checkbox"
+                checked={form.mostrarSorteo}
+                onChange={e => setForm({ ...form, mostrarSorteo: e.target.checked })}
+              />
+              Mostrar botón de sorteo
+            </label>
 
             {!editId && (
               <>

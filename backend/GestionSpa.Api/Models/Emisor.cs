@@ -10,6 +10,12 @@ public class Emisor
     public bool Activo { get; set; } = true;
     public DateTime FechaAlta { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Si el admin del emisor ve Configuración → Portero.</summary>
+    public bool MostrarConfigPortero { get; set; }
+
+    /// <summary>Si el admin del emisor ve el botón de sorteo en Informes.</summary>
+    public bool MostrarSorteo { get; set; }
+
     public ICollection<Usuario> Usuarios { get; set; } = [];
     public ICollection<Familia> Familias { get; set; } = [];
     public ICollection<Socio> Socios { get; set; } = [];

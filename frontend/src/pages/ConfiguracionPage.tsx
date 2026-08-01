@@ -7,7 +7,7 @@ import PorteroConfigSection from '../components/PorteroConfigSection';
 import { Settings, Download, Upload, AlertTriangle } from 'lucide-react';
 
 export default function ConfiguracionPage() {
-  const { isSuperAdmin, emisorSlug } = useAuth();
+  const { isSuperAdmin, emisorSlug, mostrarConfigPortero } = useAuth();
   if (isSuperAdmin) return <Navigate to="/" replace />;
 
   const [exportando, setExportando] = useState(false);
@@ -134,7 +134,7 @@ export default function ConfiguracionPage() {
         )}
       </div>
 
-      <PorteroConfigSection />
+      {mostrarConfigPortero && <PorteroConfigSection />}
     </div>
   );
 }

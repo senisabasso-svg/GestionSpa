@@ -74,7 +74,9 @@ public class PorteroController(
     private async Task<Emisor?> RequireEmisorAsync()
     {
         if (!tenant.EmisorId.HasValue) return null;
-        return await db.Emisores.FirstOrDefaultAsync(e => e.Id == tenant.EmisorId && e.Activo);
+        var emisor = await db.Emisores.FirstOrDefaultAsync(e => e.Id == tenant.EmisorId && e.Activo);
+        if (emisor is null || !emisor.MostrarConfigPortero) return null;
+        return emisor;
     }
 
     private string? GetApiPublicBaseUrl()

@@ -70,6 +70,8 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
             Slug = slug,
             Ciudad = dto.Ciudad?.Trim(),
             Departamento = dto.Departamento?.Trim(),
+            MostrarConfigPortero = dto.MostrarConfigPortero,
+            MostrarSorteo = dto.MostrarSorteo,
         };
 
         db.Emisores.Add(emisor);
@@ -111,6 +113,8 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
         emisor.Slug = slug;
         emisor.Ciudad = dto.Ciudad?.Trim();
         emisor.Departamento = dto.Departamento?.Trim();
+        emisor.MostrarConfigPortero = dto.MostrarConfigPortero;
+        emisor.MostrarSorteo = dto.MostrarSorteo;
 
         await db.SaveChangesAsync();
         return Map(emisor);
@@ -148,5 +152,6 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
     }
 
     private static EmisorDto Map(Emisor e) => new(
-        e.Id, e.Nombre, e.Slug, e.Ciudad, e.Departamento, e.Activo, e.FechaAlta);
+        e.Id, e.Nombre, e.Slug, e.Ciudad, e.Departamento, e.Activo, e.FechaAlta,
+        e.MostrarConfigPortero, e.MostrarSorteo);
 }

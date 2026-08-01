@@ -54,6 +54,8 @@ export interface Emisor {
   departamento?: string;
   activo: boolean;
   fechaAlta: string;
+  mostrarConfigPortero: boolean;
+  mostrarSorteo: boolean;
 }
 
 export interface CrearEmisorPayload {
@@ -64,6 +66,8 @@ export interface CrearEmisorPayload {
   adminEmail: string;
   adminPassword: string;
   adminNombre: string;
+  mostrarConfigPortero?: boolean;
+  mostrarSorteo?: boolean;
 }
 
 export interface ActualizarEmisorPayload {
@@ -71,6 +75,8 @@ export interface ActualizarEmisorPayload {
   slug: string;
   ciudad?: string | null;
   departamento?: string | null;
+  mostrarConfigPortero: boolean;
+  mostrarSorteo: boolean;
 }
 
 export interface EmisorPublico {
@@ -89,6 +95,8 @@ export interface LoginResponse {
   emisorId: number | null;
   emisorNombre: string | null;
   emisorSlug: string | null;
+  mostrarConfigPortero: boolean;
+  mostrarSorteo: boolean;
 }
 
 export interface Cliente {

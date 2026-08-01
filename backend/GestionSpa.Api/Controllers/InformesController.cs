@@ -252,6 +252,14 @@ public class InformesController(AppDbContext db, ITenantContext tenant) : Contro
     [HttpPost("sorteo")]
     public async Task<ActionResult<ResultadoSorteoDto>> GenerarSorteo()
     {
+        if (!tenant.EffectiveEmisorId.HasValue)
+            return BadRequest(new { mensaje = "Seleccioná un emisor" });
+
+        var emisor = await db.Emisores.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == tenant.EffectiveEmisorId.Value);
+        if (emisor is null || !emisor.MostrarSorteo)
+            return Forbid();
+
         var activos = await db.Socios.ForTenant(tenant)
             .Where(s => s.Estado == EstadoSocio.Activo)
             .OrderBy(s => s.Id)

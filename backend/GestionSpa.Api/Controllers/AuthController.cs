@@ -27,10 +27,7 @@ public class AuthController(AppDbContext db, JwtTokenService jwt) : ControllerBa
             return Unauthorized(new { mensaje = "Credenciales inválidas" });
 
         var token = jwt.GenerateToken(usuario);
-        return new LoginResponseDto(
-            token, usuario.Id, usuario.Email, usuario.Nombre,
-            usuario.Rol, usuario.EmisorId,
-            usuario.Emisor?.Nombre, usuario.Emisor?.Slug);
+        return MapLogin(token, usuario);
     }
 
     [Authorize]
@@ -43,9 +40,13 @@ public class AuthController(AppDbContext db, JwtTokenService jwt) : ControllerBa
         var usuario = await db.Usuarios.Include(u => u.Emisor).FirstOrDefaultAsync(u => u.Id == id);
         if (usuario == null || !usuario.Activo) return Unauthorized();
 
-        return new LoginResponseDto(
-            "", usuario.Id, usuario.Email, usuario.Nombre,
-            usuario.Rol, usuario.EmisorId,
-            usuario.Emisor?.Nombre, usuario.Emisor?.Slug);
+        return MapLogin("", usuario);
     }
+
+    private static LoginResponseDto MapLogin(string token, Usuario usuario) => new(
+        token, usuario.Id, usuario.Email, usuario.Nombre,
+        usuario.Rol, usuario.EmisorId,
+        usuario.Emisor?.Nombre, usuario.Emisor?.Slug,
+        usuario.Emisor?.MostrarConfigPortero ?? false,
+        usuario.Emisor?.MostrarSorteo ?? false);
 }

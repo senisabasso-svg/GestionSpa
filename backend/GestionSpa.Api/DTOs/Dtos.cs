@@ -81,20 +81,24 @@ public record LoginDto(string Email, string Password);
 
 public record LoginResponseDto(
     string Token, int UsuarioId, string Email, string Nombre,
-    RolUsuario Rol, int? EmisorId, string? EmisorNombre, string? EmisorSlug);
+    RolUsuario Rol, int? EmisorId, string? EmisorNombre, string? EmisorSlug,
+    bool MostrarConfigPortero = false, bool MostrarSorteo = false);
 
 public record EmisorDto(
     int Id, string Nombre, string Slug, string? Ciudad, string? Departamento,
-    bool Activo, DateTime FechaAlta);
+    bool Activo, DateTime FechaAlta,
+    bool MostrarConfigPortero = false, bool MostrarSorteo = false);
 
 public record EmisorPublicoDto(int Id, string Nombre, string Slug, string? Ciudad);
 
 public record CrearEmisorDto(
     string Nombre, string Slug, string? Ciudad, string? Departamento,
-    string AdminEmail, string AdminPassword, string AdminNombre);
+    string AdminEmail, string AdminPassword, string AdminNombre,
+    bool MostrarConfigPortero = false, bool MostrarSorteo = false);
 
 public record ActualizarEmisorDto(
-    string Nombre, string Slug, string? Ciudad, string? Departamento);
+    string Nombre, string Slug, string? Ciudad, string? Departamento,
+    bool MostrarConfigPortero = false, bool MostrarSorteo = false);
 
 public record UsuarioDto(
     int Id, string Email, string Nombre, RolUsuario Rol,
