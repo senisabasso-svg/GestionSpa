@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { CuotaMensual, EstadoPago } from '../types';
 import { MESES, formatUYU } from '../types';
@@ -16,6 +16,7 @@ export default function CuotasPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [buscar, setBuscar] = useState('');
   const [buscarDebounced, setBuscarDebounced] = useState('');
+  const [expandida, setExpandida] = useState<number | null>(null);
   const [pagoModal, setPagoModal] = useState<CuotaMensual | null>(null);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [pagoError, setPagoError] = useState('');
@@ -56,18 +57,24 @@ export default function CuotasPage() {
     }
   };
 
+  const abrirCobro = (c: CuotaMensual) => {
+    setPagoModal(c);
+    setPagoForm({ monto: c.saldoPendiente, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
+    setPagoError('');
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>Cuotas Mensuales</h2>
-        <p>Gestión de cuotas de socios — vencimiento día 10 de cada mes</p>
+        <p>Gestión de cuotas — socios individuales y familias (un cobro por familia). Vencimiento día 10.</p>
       </div>
 
       <div className="toolbar">
         <div className="search">
           <input
             className="form-control"
-            placeholder="Buscar por nombre y apellido o nº socio..."
+            placeholder="Buscar por nombre, familia o nº socio..."
             value={buscar}
             onChange={e => setBuscar(e.target.value)}
             maxLength={100}
@@ -88,8 +95,8 @@ export default function CuotasPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th>
-              <th className="col-socio">Socio</th>
+              <th>Nº</th>
+              <th className="col-socio">Socio / Familia</th>
               <th>Cuota base</th>
               <th>Servicios</th>
               <th>Total</th>
@@ -100,25 +107,66 @@ export default function CuotasPage() {
             </tr>
           </thead>
           <tbody>
-            {cuotas.map(c => (
-              <tr key={c.id}>
-                <td><strong>{c.numeroSocio}</strong></td>
-                <td className="cell-ellipsis col-socio" title={c.socioNombre}>{c.socioNombre}</td>
-                <td>{formatUYU(c.montoCuota)}</td>
-                <td>{formatUYU(c.montoServicios)}</td>
-                <td><strong>{formatUYU(c.total)}</strong></td>
-                <td>{formatUYU(c.montoPagado)}</td>
-                <td style={{ color: c.saldoPendiente > 0 ? 'var(--color-danger)' : 'inherit' }}>{formatUYU(c.saldoPendiente)}</td>
-                <td>{pagoBadge(c.estadoPago)}</td>
-                <td>
-                  {c.estadoPago !== 'Pagado' && (
-                    <button className="btn btn-sm btn-success" onClick={() => { setPagoModal(c); setPagoForm({ monto: c.saldoPendiente, metodoPago: 'Efectivo', referencia: '', registradoPor: '' }); }}>
-                      Cobrar
-                    </button>
+            {cuotas.map(c => {
+              const esFam = !!c.esFamilia;
+              const abierta = expandida === c.id;
+              return (
+                <Fragment key={c.id}>
+                  <tr>
+                    <td><strong>{c.numeroSocio}</strong></td>
+                    <td className="cell-ellipsis col-socio" title={c.socioNombre}>
+                      {esFam ? (
+                        <span>
+                          <strong>{c.socioNombre}</strong>
+                          <span className="badge badge-info" style={{ marginLeft: 8 }}>Familia</span>
+                        </span>
+                      ) : c.socioNombre}
+                    </td>
+                    <td>{formatUYU(c.montoCuota)}</td>
+                    <td>{formatUYU(c.montoServicios)}</td>
+                    <td><strong>{formatUYU(c.total)}</strong></td>
+                    <td>{formatUYU(c.montoPagado)}</td>
+                    <td style={{ color: c.saldoPendiente > 0 ? 'var(--color-danger)' : 'inherit' }}>{formatUYU(c.saldoPendiente)}</td>
+                    <td>{pagoBadge(c.estadoPago)}</td>
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {esFam && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => setExpandida(abierta ? null : c.id)}
+                        >
+                          {abierta ? 'Ocultar familia' : 'Mostrar familia'}
+                        </button>
+                      )}
+                      {c.estadoPago !== 'Pagado' && (
+                        <button type="button" className="btn btn-sm btn-success" onClick={() => abrirCobro(c)}>
+                          Cobrar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {esFam && abierta && (
+                    <tr className="row-detail">
+                      <td colSpan={9}>
+                        <div style={{ padding: '0.5rem 0.75rem', background: 'var(--color-bg-muted, #f6f7f9)', borderRadius: 6 }}>
+                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>
+                            Integrantes (solo vista). El cobro es a la familia <strong>{c.socioNombre}</strong>.
+                          </p>
+                          <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                            {(c.integrantes ?? []).map(i => (
+                              <li key={i.socioId}>
+                                {i.numeroSocio} — {i.nombreCompleto}
+                                {i.montoServicios > 0 ? ` · servicios ${formatUYU(i.montoServicios)}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
         {cuotas.length === 0 && (
@@ -133,11 +181,17 @@ export default function CuotasPage() {
       {pagoModal && (
         <div className="modal-overlay" onClick={() => setPagoModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Registrar Pago de Cuota</h3>
+            <h3>{pagoModal.esFamilia ? 'Registrar pago de cuota familiar' : 'Registrar Pago de Cuota'}</h3>
             <p style={{ marginBottom: '1rem' }}>
-              <strong>{pagoModal.socioNombre}</strong> — {MESES[pagoModal.mes - 1]} {pagoModal.anio}
+              <strong>{pagoModal.socioNombre}</strong>
+              {pagoModal.esFamilia ? ' (familia)' : ''} — {MESES[pagoModal.mes - 1]} {pagoModal.anio}
               <br />Saldo pendiente: <strong>{formatUYU(pagoModal.saldoPendiente)}</strong>
             </p>
+            {pagoModal.esFamilia && (
+              <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                Al confirmar, los integrantes quedan cubiertos: no se cobran cuotas individuales.
+              </p>
+            )}
             {pagoError && <div className="alert alert-error">{pagoError}</div>}
             <div className="form-group">
               <label>Monto (UYU)</label>

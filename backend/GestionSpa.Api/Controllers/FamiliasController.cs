@@ -11,7 +11,7 @@ namespace GestionSpa.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class FamiliasController(AppDbContext db, ITenantContext tenant) : ControllerBase
+public class FamiliasController(AppDbContext db, CuotaService cuotaService, ITenantContext tenant) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<FamiliaDto>>> GetAll([FromQuery] string? buscar)
@@ -77,23 +77,21 @@ public class FamiliasController(AppDbContext db, ITenantContext tenant) : Contro
         familia.CuotaMensual = dto.CuotaMensual;
         familia.Observaciones = dto.Observaciones?.Trim();
 
+        // Referencia en socios; el cobro real es 1× por familia (normalización en Cuotas).
         if (cuotaAnterior != dto.CuotaMensual && familia.Socios.Count > 0)
         {
-            var (mes, anio) = UruguayTime.MesAnioActual();
             foreach (var socio in familia.Socios)
-            {
                 socio.CuotaMensual = dto.CuotaMensual;
-                var cuotaMes = await db.CuotasMensuales.ForTenant(tenant)
-                    .FirstOrDefaultAsync(c => c.SocioId == socio.Id && c.Mes == mes && c.Anio == anio);
-                if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
-                {
-                    cuotaMes.MontoCuota = dto.CuotaMensual;
-                    CuotaService.RecalcularEstadoPago(cuotaMes);
-                }
-            }
         }
 
         await db.SaveChangesAsync();
+
+        if (cuotaAnterior != dto.CuotaMensual && familia.Socios.Any(s => s.Estado == EstadoSocio.Activo))
+        {
+            var (mes, anio) = UruguayTime.MesAnioActual();
+            await cuotaService.NormalizarCuotasFamiliaAsync(familia.Id, mes, anio);
+        }
+
         return Map(familia);
     }
 

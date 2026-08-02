@@ -141,6 +141,13 @@ export interface Cargo {
   notas?: string;
 }
 
+export interface CuotaFamiliaIntegrante {
+  socioId: number;
+  numeroSocio: string;
+  nombreCompleto: string;
+  montoServicios: number;
+}
+
 export interface CuotaMensual {
   id: number;
   socioId: number;
@@ -156,6 +163,10 @@ export interface CuotaMensual {
   estadoPago: EstadoPago;
   fechaVencimiento?: string;
   fechaPago?: string;
+  /** Cobro agrupado: se cobra a la familia, no a cada integrante. */
+  esFamilia?: boolean;
+  familiaId?: number;
+  integrantes?: CuotaFamiliaIntegrante[];
 }
 
 export interface ResultadoIngreso {

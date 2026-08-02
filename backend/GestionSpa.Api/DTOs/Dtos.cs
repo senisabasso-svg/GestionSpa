@@ -57,11 +57,17 @@ public record CrearCargoDto(
 
 public record AnularCargoDto(string? Motivo);
 
+public record CuotaFamiliaIntegranteDto(
+    int SocioId, string NumeroSocio, string NombreCompleto, decimal MontoServicios);
+
 public record CuotaMensualDto(
     int Id, int SocioId, string NumeroSocio, string SocioNombre,
     int Mes, int Anio, decimal MontoCuota, decimal MontoServicios,
     decimal Total, decimal MontoPagado, decimal SaldoPendiente,
-    EstadoPago EstadoPago, DateTime? FechaVencimiento, DateTime? FechaPago);
+    EstadoPago EstadoPago, DateTime? FechaVencimiento, DateTime? FechaPago,
+    bool EsFamilia = false,
+    int? FamiliaId = null,
+    IReadOnlyList<CuotaFamiliaIntegranteDto>? Integrantes = null);
 
 public record RegistrarPagoDto(
     decimal Monto, MetodoPago MetodoPago, string? Referencia,

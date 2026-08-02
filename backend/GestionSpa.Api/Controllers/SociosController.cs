@@ -93,6 +93,8 @@ public class SociosController(
         {
             var (mes, anio) = UruguayTime.MesAnioActual();
             await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mes, anio);
+            if (socio.FamiliaId.HasValue)
+                await cuotaService.NormalizarCuotasFamiliaAsync(socio.FamiliaId.Value, mes, anio);
             await portero.TrySyncSocioAsync(socio);
         }
 
@@ -126,6 +128,7 @@ public class SociosController(
         socio.FechaAlta = dto.FechaAlta.ToUniversalTime();
         socio.FechaVencimiento = dto.FechaVencimiento?.ToUniversalTime();
         var cuotaAnterior = socio.CuotaMensual;
+        var familiaAnterior = socio.FamiliaId;
         socio.MedioPago = dto.MedioPago;
         socio.CuotaMensual = dto.CuotaMensual;
         socio.FamiliaId = dto.FamiliaId;
@@ -135,11 +138,30 @@ public class SociosController(
 
         await db.SaveChangesAsync();
 
-        if (cuotaAnterior != dto.CuotaMensual)
+        var (mesActual, anioActual) = UruguayTime.MesAnioActual();
+
+        if (socio.FamiliaId.HasValue)
         {
-            var (mes, anio) = UruguayTime.MesAnioActual();
+            await cuotaService.ObtenerOCrearCuotaAsync(socio.Id, mesActual, anioActual);
+            await cuotaService.NormalizarCuotasFamiliaAsync(socio.FamiliaId.Value, mesActual, anioActual);
+        }
+        else if (familiaAnterior.HasValue)
+        {
+            // Salio de la familia: vuelve a cobrarse su cuota individual.
             var cuotaMes = await db.CuotasMensuales.ForTenant(tenant)
-                .FirstOrDefaultAsync(c => c.SocioId == id && c.Mes == mes && c.Anio == anio);
+                .FirstOrDefaultAsync(c => c.SocioId == id && c.Mes == mesActual && c.Anio == anioActual);
+            if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
+            {
+                cuotaMes.MontoCuota = dto.CuotaMensual;
+                CuotaService.RecalcularEstadoPago(cuotaMes);
+                await db.SaveChangesAsync();
+            }
+            await cuotaService.NormalizarCuotasFamiliaAsync(familiaAnterior.Value, mesActual, anioActual);
+        }
+        else if (cuotaAnterior != dto.CuotaMensual)
+        {
+            var cuotaMes = await db.CuotasMensuales.ForTenant(tenant)
+                .FirstOrDefaultAsync(c => c.SocioId == id && c.Mes == mesActual && c.Anio == anioActual);
 
             if (cuotaMes != null && cuotaMes.EstadoPago != EstadoPago.Pagado)
             {
