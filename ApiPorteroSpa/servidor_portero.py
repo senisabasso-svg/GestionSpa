@@ -20,7 +20,7 @@ from config import (
 )
 from zkteco_protocol import (
     parse_http_request, http_response, build_getrequest_response,
-    parse_attlog, parse_operlog, cdata_ack_body, DEFAULT_DEVICE_SN,
+    parse_attlog, parse_operlog, parse_userinfo, cdata_ack_body, DEFAULT_DEVICE_SN,
 )
 
 # ===== UTF-8 en consola Windows =====
@@ -189,6 +189,19 @@ def build_zkteco_response(data: bytes, db: Database) -> tuple[bytes | None, str]
             ops = parse_operlog(body)
             if ops:
                 logger.info(f"OPERLOG SN={sn}: {len(ops)} operaciones")
+
+        elif table == 'USERINFO':
+            users = parse_userinfo(body)
+            if users:
+                count = db.replace_device_users(sn, users)
+                logger.info(f"USERINFO SN={sn}: {count} usuario(s) del equipo")
+                print(f"""
+{Colors.OKGREEN}USUARIOS RECIBIDOS DEL PORTERO (SN={sn})
+  Cantidad: {count}
+  Ejemplo: {users[0].get('pin')} — {users[0].get('name')}
+{Colors.ENDC}""")
+            else:
+                logger.warning(f"USERINFO SN={sn}: body sin usuarios parseables ({len(body)} chars)")
 
         elif table == 'OPTIONS':
             logger.info(f"Options recibidas SN={sn} ({len(body)} chars)")

@@ -126,6 +126,26 @@ class Database:
                 )
             ''')
 
+            # Snapshot de usuarios leídos del equipo (DATA QUERY USERINFO)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS device_users (
+                    device_sn VARCHAR(50) NOT NULL,
+                    pin VARCHAR(50) NOT NULL,
+                    name VARCHAR(200),
+                    privilege INTEGER DEFAULT 0,
+                    card VARCHAR(50),
+                    synced_at TIMESTAMP NOT NULL,
+                    PRIMARY KEY (device_sn, pin)
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS device_meta (
+                    device_sn VARCHAR(50) PRIMARY KEY,
+                    last_userinfo_at TIMESTAMP,
+                    last_userinfo_count INTEGER DEFAULT 0
+                )
+            ''')
+
             conn.commit()
             logger.info(f"✅ Base de datos inicializada: {self.db_path}")
 
@@ -456,6 +476,82 @@ class Database:
                 command_ids
             )
             conn.commit()
+        finally:
+            conn.close()
+
+    def replace_device_users(self, device_sn: str, users: list[dict]) -> int:
+        """Reemplaza el snapshot de usuarios del equipo con lo que mandó USERINFO."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        try:
+            cursor.execute('DELETE FROM device_users WHERE device_sn = ?', (device_sn,))
+            for u in users:
+                pin = str(u.get('pin') or '').strip()
+                if not pin:
+                    continue
+                cursor.execute('''
+                    INSERT INTO device_users (device_sn, pin, name, privilege, card, synced_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    device_sn,
+                    pin,
+                    u.get('name') or '',
+                    int(u.get('privilege') or 0),
+                    u.get('card') or '',
+                    now,
+                ))
+                # También refleja en users para el listado /api/socios
+                name = (u.get('name') or '').strip() or pin
+                cursor.execute('''
+                    INSERT INTO users
+                    (user_id, first_name, last_name, email, phone, membership_type,
+                     access_level, card_id, valid_from, valid_until, status)
+                    VALUES (?, ?, '', '', '', 'device', ?, ?, NULL, NULL, 'active')
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        first_name = excluded.first_name,
+                        card_id = excluded.card_id,
+                        access_level = excluded.access_level,
+                        status = 'active',
+                        membership_type = 'device',
+                        updated_at = CURRENT_TIMESTAMP
+                ''', (pin, name, int(u.get('privilege') or 0), u.get('card') or pin))
+
+            cursor.execute('''
+                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count)
+                VALUES (?, ?, ?)
+                ON CONFLICT(device_sn) DO UPDATE SET
+                    last_userinfo_at = excluded.last_userinfo_at,
+                    last_userinfo_count = excluded.last_userinfo_count
+            ''', (device_sn, now, len(users)))
+            conn.commit()
+            logger.info("USERINFO snapshot SN=%s: %s usuario(s)", device_sn, len(users))
+            return len(users)
+        finally:
+            conn.close()
+
+    def get_device_users(self, device_sn: str) -> list[dict]:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'SELECT * FROM device_users WHERE device_sn = ? ORDER BY pin',
+                (device_sn,),
+            )
+            return [dict(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def get_device_userinfo_meta(self, device_sn: str) -> dict | None:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'SELECT * FROM device_meta WHERE device_sn = ?',
+                (device_sn,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
         finally:
             conn.close()
 

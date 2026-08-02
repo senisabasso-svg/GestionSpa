@@ -328,47 +328,39 @@ public class PorteroIntegrationService(
         if (string.IsNullOrWhiteSpace(config.ApiKey))
             throw new InvalidOperationException("Falta la API Key del portero");
 
+        var sn = string.IsNullOrWhiteSpace(config.DeviceSn) ? "7674222960189" : config.DeviceSn.Trim();
         var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl);
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        // Espera al equipo: ApiPorteroSpa encola DATA QUERY USERINFO y arma el CSV.
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(110) };
         http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", config.ApiKey.Trim());
-        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        var url = $"{baseUrl.TrimEnd('/')}/api/socios?limit=5000";
+        var url = $"{baseUrl.TrimEnd('/')}/api/dispositivos/{Uri.EscapeDataString(sn)}/exportar-usuarios-equipo?wait_seconds=90";
         using var response = await http.GetAsync(url);
-        var body = await response.Content.ReadAsStringAsync();
+        var bodyBytes = await response.Content.ReadAsByteArrayAsync();
         if (!response.IsSuccessStatusCode)
         {
-            var detail = body.Length > 200 ? body[..200] : body;
+            var detail = Encoding.UTF8.GetString(bodyBytes);
+            try
+            {
+                using var errDoc = JsonDocument.Parse(detail);
+                if (errDoc.RootElement.TryGetProperty("error", out var errProp))
+                    detail = errProp.GetString() ?? detail;
+            }
+            catch (JsonException) { /* texto plano */ }
+
+            if (detail.Length > 280) detail = detail[..280];
             throw new InvalidOperationException(
-                $"No se pudo leer socios de ApiPorteroSpa ({(int)response.StatusCode}). {detail}");
+                response.StatusCode == System.Net.HttpStatusCode.GatewayTimeout
+                    ? detail
+                    : $"No se pudo exportar usuarios del equipo ({(int)response.StatusCode}). {detail}");
         }
 
-        using var doc = JsonDocument.Parse(body);
-        if (!doc.RootElement.TryGetProperty("socios", out var sociosEl) || sociosEl.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException("Respuesta inválida de ApiPorteroSpa");
+        var fileName = $"usuarios-equipo-{emisorSlug}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv";
+        var disposition = response.Content.Headers.ContentDisposition?.FileName?.Trim('"');
+        if (!string.IsNullOrWhiteSpace(disposition))
+            fileName = disposition;
 
-        var sb = new StringBuilder();
-        sb.AppendLine("pin;nombre;apellido;estado;tarjeta;telefono;email;valido_desde;valido_hasta;creado");
-        foreach (var s in sociosEl.EnumerateArray())
-        {
-            sb.Append(Csv(GetJsonString(s, "user_id"))).Append(';')
-                .Append(Csv(GetJsonString(s, "first_name"))).Append(';')
-                .Append(Csv(GetJsonString(s, "last_name"))).Append(';')
-                .Append(Csv(GetJsonString(s, "status"))).Append(';')
-                .Append(Csv(GetJsonString(s, "card_id"))).Append(';')
-                .Append(Csv(GetJsonString(s, "phone"))).Append(';')
-                .Append(Csv(GetJsonString(s, "email"))).Append(';')
-                .Append(Csv(GetJsonString(s, "valid_from"))).Append(';')
-                .Append(Csv(GetJsonString(s, "valid_until"))).Append(';')
-                .Append(Csv(GetJsonString(s, "created_at")))
-                .AppendLine();
-        }
-
-        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmm");
-        var fileName = $"socios-portero-{emisorSlug}-{stamp}.csv";
-        // BOM para que Excel abra bien los acentos
-        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
-        return (bytes, fileName);
+        return (bodyBytes, fileName);
     }
 
     private static string ResolveApiPorteroBaseUrl(string? apiUrl)

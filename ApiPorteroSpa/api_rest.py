@@ -19,20 +19,23 @@ Endpoints:
   GET  /api/dispositivos/<sn>
   POST /api/dispositivos/<sn>/abrir-puerta
   POST /api/dispositivos/<sn>/sincronizar-fichajes
+  POST /api/dispositivos/<sn>/consultar-usuarios
+  GET  /api/dispositivos/<sn>/usuarios-equipo
   POST /api/comandos
 """
 import logging
 import os
+import time
 from functools import wraps
 
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect, Response
 
 from config import API_HOST, API_PORT, API_KEY
 from database import Database
 from log_buffer import get_lines as get_log_lines, clear as clear_log_buffer
 from socio_service import (
     crear_socio, actualizar_socio, eliminar_socio,
-    abrir_puerta, sincronizar_fichajes, encolar_comando,
+    abrir_puerta, sincronizar_fichajes, consultar_usuarios_equipo, encolar_comando,
 )
 from webhook_client import notify_socio_queued
 from zkteco_protocol import DEFAULT_DEVICE_SN
@@ -219,6 +222,91 @@ def unlock_door(sn):
 def sync_attlog(sn):
     result = sincronizar_fichajes(db, sn)
     return jsonify(result)
+
+
+@app.route('/api/dispositivos/<sn>/consultar-usuarios', methods=['POST'])
+@require_api_key
+def query_device_users(sn):
+    """Encola DATA QUERY USERINFO al dispositivo."""
+    return jsonify(consultar_usuarios_equipo(db, sn))
+
+
+@app.route('/api/dispositivos/<sn>/usuarios-equipo', methods=['GET'])
+@require_api_key
+def list_device_users(sn):
+    """Snapshot de usuarios leídos del equipo (tras consultar-usuarios)."""
+    meta = db.get_device_userinfo_meta(sn) or {}
+    users = db.get_device_users(sn)
+    return jsonify({
+        'device_sn': sn,
+        'last_userinfo_at': meta.get('last_userinfo_at'),
+        'count': len(users),
+        'usuarios': users,
+    })
+
+
+@app.route('/api/dispositivos/<sn>/exportar-usuarios-equipo', methods=['GET'])
+@require_api_key
+def export_device_users_csv(sn):
+    """
+    Encola QUERY USERINFO, espera respuesta del equipo y devuelve CSV.
+    Query: wait_seconds (default 75, max 120).
+    """
+    wait_seconds = request.args.get('wait_seconds', 75, type=int)
+    wait_seconds = max(15, min(wait_seconds or 75, 120))
+    started = time.time()
+    started_iso = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(started))
+
+    consultar_usuarios_equipo(db, sn)
+    meta_before = db.get_device_userinfo_meta(sn) or {}
+    before_at = meta_before.get('last_userinfo_at') or ''
+
+    deadline = started + wait_seconds
+    users = []
+    meta = {}
+    while time.time() < deadline:
+        time.sleep(2)
+        meta = db.get_device_userinfo_meta(sn) or {}
+        at = meta.get('last_userinfo_at') or ''
+        if at and at > before_at and at >= started_iso[:19]:
+            users = db.get_device_users(sn)
+            break
+        # Si no había snapshot previo, cualquier llegada cuenta
+        if not before_at and at:
+            users = db.get_device_users(sn)
+            break
+
+    if not users:
+        users = db.get_device_users(sn)
+    if not users:
+        return jsonify({
+            'error': (
+                'El equipo no envió usuarios a tiempo. '
+                'Verificá que el portero esté conectado (heartbeat) e intentá de nuevo.'
+            ),
+        }), 504
+
+    lines = ['pin;nombre;privilegio;tarjeta;sincronizado']
+    for u in users:
+        def esc(v):
+            s = str(v if v is not None else '')
+            if '"' in s or ';' in s or '\n' in s:
+                return '"' + s.replace('"', '""') + '"'
+            return s
+        lines.append(';'.join([
+            esc(u.get('pin')),
+            esc(u.get('name')),
+            esc(u.get('privilege')),
+            esc(u.get('card')),
+            esc(u.get('synced_at')),
+        ]))
+    csv_body = '\ufeff' + '\n'.join(lines) + '\n'
+    filename = f"usuarios-equipo-{sn}-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        csv_body,
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @app.route('/api/comandos', methods=['POST'])

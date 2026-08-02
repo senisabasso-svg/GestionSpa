@@ -9,6 +9,7 @@ from zkteco_protocol import (
     build_delete_user_body,
     build_unlock_door_body,
     build_query_attlog_body,
+    build_query_userinfo_body,
     DEFAULT_DEVICE_SN,
 )
 
@@ -137,6 +138,17 @@ def abrir_puerta(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> dict:
 def sincronizar_fichajes(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> dict:
     cmd_id = db.queue_device_command(device_sn, build_query_attlog_body())
     return {'device_sn': device_sn, 'command_id': cmd_id, 'action': 'query_attlog'}
+
+
+def consultar_usuarios_equipo(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> dict:
+    """Encola DATA QUERY USERINFO: el equipo responde con table=USERINFO."""
+    cmd_id = db.queue_device_command(device_sn, build_query_userinfo_body())
+    return {
+        'device_sn': device_sn,
+        'command_id': cmd_id,
+        'action': 'query_userinfo',
+        'message': 'Consulta encolada. El equipo enviará los usuarios en el próximo ciclo (~10–60 s).',
+    }
 
 
 def encolar_comando(db: Database, device_sn: str, command_body: str) -> dict:

@@ -94,6 +94,45 @@ def build_query_attlog_body() -> str:
     return "DATA QUERY ATTLOG StartTime=2020-01-01 00:00:00\tEndTime=2099-12-31 23:59:59"
 
 
+def build_query_userinfo_body() -> str:
+    """Pide al equipo que envíe todos los USERINFO vía POST /iclock/cdata."""
+    return "DATA QUERY USERINFO"
+
+
+def parse_userinfo(body: str) -> list[dict]:
+    """
+    Parsea USERINFO enviado por el dispositivo.
+    Formato típico por línea: PIN=1\\tName=Juan\\tPrivilege=0\\tCard=\\tPassword=
+    """
+    records = []
+    for raw in body.strip().splitlines():
+        line = raw.strip().rstrip('\r')
+        if not line or line.upper().startswith('USERINFO'):
+            continue
+        fields: dict[str, str] = {}
+        for part in line.split('\t'):
+            if '=' not in part:
+                continue
+            key, _, value = part.partition('=')
+            fields[key.strip()] = value.strip()
+        pin = fields.get('PIN') or fields.get('Pin') or ''
+        if not pin:
+            continue
+        pri = fields.get('Privilege') or fields.get('Pri') or '0'
+        try:
+            privilege = int(pri)
+        except ValueError:
+            privilege = 0
+        records.append({
+            'pin': pin,
+            'name': fields.get('Name') or fields.get('NAME') or '',
+            'privilege': privilege,
+            'card': fields.get('Card') or fields.get('CardNo') or '',
+            'password': fields.get('Password') or fields.get('Passwd') or '',
+        })
+    return records
+
+
 def build_getrequest_response(commands: list[str]) -> str:
     if not commands:
         return 'OK'
@@ -166,6 +205,8 @@ def cdata_ack_body(table: str, body: str) -> str:
         count = sum(1 for ln in lines if not ln.startswith('ATTLOG') and '\t' in ln)
     elif table.upper() == 'OPERLOG':
         count = sum(1 for ln in lines if ln.startswith('OPLOG'))
+    elif table.upper() == 'USERINFO':
+        count = sum(1 for ln in lines if 'PIN=' in ln.upper() or '\t' in ln)
     else:
         count = len(lines)
 

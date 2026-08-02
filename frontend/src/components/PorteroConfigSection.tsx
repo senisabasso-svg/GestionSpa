@@ -130,10 +130,12 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
     setError(null);
     setMensaje(null);
     try {
+      setMensaje('Consultando usuarios al equipo biométrico… puede tardar hasta ~1 minuto.');
       await api.portero.exportarSocios();
-      setMensaje('CSV de socios del portero descargado.');
+      setMensaje('CSV con los usuarios cargados en el portero descargado.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al exportar socios del portero');
+      setMensaje(null);
     } finally {
       setExportando(false);
     }
@@ -170,8 +172,8 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
           <DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}
         </button>
         {!mostrarConfigCompleta && (
-          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey}>
-            <Download size={16} /> {exportando ? 'Exportando...' : 'Exportar socios de portero'}
+          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey || !form.habilitado}>
+            <Download size={16} /> {exportando ? 'Consultando equipo…' : 'Exportar socios de portero'}
           </button>
         )}
       </div>
@@ -234,8 +236,8 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
         <div className="form-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
           <button type="button" className="btn btn-secondary" onClick={probar} disabled={probando}><Wifi size={16} /> {probando ? 'Probando...' : 'Probar agente'}</button>
-          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey}>
-            <Download size={16} /> {exportando ? 'Exportando...' : 'Exportar socios de portero'}
+          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey || !form.habilitado}>
+            <Download size={16} /> {exportando ? 'Consultando equipo…' : 'Exportar socios de portero'}
           </button>
         </div>
 
