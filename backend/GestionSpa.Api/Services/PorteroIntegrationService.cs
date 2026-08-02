@@ -329,38 +329,123 @@ public class PorteroIntegrationService(
             throw new InvalidOperationException("Falta la API Key del portero");
 
         var sn = string.IsNullOrWhiteSpace(config.DeviceSn) ? "7674222960189" : config.DeviceSn.Trim();
-        var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl);
-        // Espera al equipo: acumula todos los USER hasta que el conteo se estabilice.
+        var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl).TrimEnd('/');
+
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(250) };
         http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", config.ApiKey.Trim());
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        var url = $"{baseUrl.TrimEnd('/')}/api/dispositivos/{Uri.EscapeDataString(sn)}/exportar-usuarios-equipo?wait_seconds=180&idle_seconds=12";
-        using var response = await http.GetAsync(url);
-        var bodyBytes = await response.Content.ReadAsByteArrayAsync();
-        if (!response.IsSuccessStatusCode)
+        // 1) Pedir dump al equipo y esperar a que ApiPorteroSpa acumule
+        var exportUrl = $"{baseUrl}/api/dispositivos/{Uri.EscapeDataString(sn)}/exportar-usuarios-equipo?wait_seconds=180&idle_seconds=12";
+        using (var exportResp = await http.GetAsync(exportUrl))
         {
-            var detail = Encoding.UTF8.GetString(bodyBytes);
-            try
+            if (!exportResp.IsSuccessStatusCode)
             {
-                using var errDoc = JsonDocument.Parse(detail);
-                if (errDoc.RootElement.TryGetProperty("error", out var errProp))
-                    detail = errProp.GetString() ?? detail;
-            }
-            catch (JsonException) { /* texto plano */ }
+                var detail = await exportResp.Content.ReadAsStringAsync();
+                try
+                {
+                    using var errDoc = JsonDocument.Parse(detail);
+                    if (errDoc.RootElement.TryGetProperty("error", out var errProp))
+                        detail = errProp.GetString() ?? detail;
+                }
+                catch (JsonException) { /* texto */ }
 
-            if (detail.Length > 280) detail = detail[..280];
-            throw new InvalidOperationException(
-                response.StatusCode == System.Net.HttpStatusCode.GatewayTimeout
-                    ? detail
-                    : $"No se pudo exportar usuarios del equipo ({(int)response.StatusCode}). {detail}");
+                if (detail.Length > 280) detail = detail[..280];
+                throw new InvalidOperationException(
+                    exportResp.StatusCode == System.Net.HttpStatusCode.GatewayTimeout
+                        ? detail
+                        : $"No se pudo consultar el equipo ({(int)exportResp.StatusCode}). {detail}");
+            }
+        }
+
+        // 2) Leer JSON del snapshot del agente
+        var listUrl = $"{baseUrl}/api/dispositivos/{Uri.EscapeDataString(sn)}/usuarios-equipo";
+        using var listResp = await http.GetAsync(listUrl);
+        var listBody = await listResp.Content.ReadAsStringAsync();
+        if (!listResp.IsSuccessStatusCode)
+            throw new InvalidOperationException($"No se pudo leer usuarios del agente: {(int)listResp.StatusCode}");
+
+        using var doc = JsonDocument.Parse(listBody);
+        if (!doc.RootElement.TryGetProperty("usuarios", out var usuariosEl)
+            || usuariosEl.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Respuesta inválida de usuarios del equipo");
+
+        var lote = new List<(string Pin, string Nombre, int Privilegio, string Tarjeta)>();
+        foreach (var u in usuariosEl.EnumerateArray())
+        {
+            var pin = GetJsonString(u, "pin").Trim();
+            if (string.IsNullOrEmpty(pin)) continue;
+            var priRaw = GetJsonString(u, "privilege");
+            _ = int.TryParse(priRaw, out var pri);
+            lote.Add((pin, GetJsonString(u, "name").Trim(), pri, GetJsonString(u, "card").Trim()));
+        }
+
+        // 3) Upsert en GestionSpa (acumula si se corta y se reintenta)
+        var ahora = DateTime.UtcNow;
+        var existentes = await db.PorteroUsuariosExtraidos
+            .Where(x => x.EmisorId == emisorId)
+            .ToDictionaryAsync(x => x.Pin, StringComparer.Ordinal);
+
+        var nuevos = 0;
+        var actualizados = 0;
+        foreach (var (pin, nombre, privilegio, tarjeta) in lote)
+        {
+            if (existentes.TryGetValue(pin, out var row))
+            {
+                row.Nombre = nombre;
+                row.Privilegio = privilegio;
+                row.Tarjeta = tarjeta;
+                row.DeviceSn = sn;
+                row.UltimaExtraccionUtc = ahora;
+                actualizados++;
+            }
+            else
+            {
+                var created = new PorteroUsuarioExtraido
+                {
+                    EmisorId = emisorId,
+                    Pin = pin,
+                    Nombre = nombre,
+                    Privilegio = privilegio,
+                    Tarjeta = tarjeta,
+                    DeviceSn = sn,
+                    PrimeraExtraccionUtc = ahora,
+                    UltimaExtraccionUtc = ahora,
+                };
+                db.PorteroUsuariosExtraidos.Add(created);
+                existentes[pin] = created;
+                nuevos++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        logger.LogInformation(
+            "PorteroUsuariosExtraidos emisor={EmisorId}: lote={Lote} nuevos={Nuevos} actualizados={Actualizados} total={Total}",
+            emisorId, lote.Count, nuevos, actualizados, existentes.Count);
+
+        // 4) CSV desde la tabla de GestionSpa (todo lo acumulado)
+        var todos = await db.PorteroUsuariosExtraidos.AsNoTracking()
+            .Where(x => x.EmisorId == emisorId)
+            .OrderBy(x => x.Pin)
+            .ToListAsync();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("pin;nombre;privilegio;tarjeta;device_sn;primera_extraccion_utc;ultima_extraccion_utc");
+        foreach (var r in todos)
+        {
+            sb.Append(Csv(r.Pin)).Append(';')
+                .Append(Csv(r.Nombre)).Append(';')
+                .Append(r.Privilegio).Append(';')
+                .Append(Csv(r.Tarjeta)).Append(';')
+                .Append(Csv(r.DeviceSn)).Append(';')
+                .Append(Csv(r.PrimeraExtraccionUtc.ToString("o"))).Append(';')
+                .Append(Csv(r.UltimaExtraccionUtc.ToString("o")))
+                .AppendLine();
         }
 
         var fileName = $"usuarios-equipo-{emisorSlug}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv";
-        var disposition = response.Content.Headers.ContentDisposition?.FileName?.Trim('"');
-        if (!string.IsNullOrWhiteSpace(disposition))
-            fileName = disposition;
-
-        return (bodyBytes, fileName);
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return (bytes, fileName);
     }
 
     private static string ResolveApiPorteroBaseUrl(string? apiUrl)

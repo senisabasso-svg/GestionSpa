@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Ingreso> Ingresos => Set<Ingreso>();
     public DbSet<EmisorPorteroConfig> EmisorPorteroConfigs => Set<EmisorPorteroConfig>();
     public DbSet<PorteroComando> PorteroComandos => Set<PorteroComando>();
+    public DbSet<PorteroUsuarioExtraido> PorteroUsuariosExtraidos => Set<PorteroUsuarioExtraido>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +107,17 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.EmisorId, x.Estado, x.FechaCreacion });
             e.HasIndex(x => new { x.EmisorId, x.ClaveIdempotencia, x.Estado });
             e.Property(x => x.PayloadJson).HasColumnType("text");
+            e.HasOne(x => x.Emisor).WithMany().HasForeignKey(x => x.EmisorId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PorteroUsuarioExtraido>(e =>
+        {
+            e.ToTable("PorteroUsuariosExtraidos");
+            e.HasIndex(x => new { x.EmisorId, x.Pin }).IsUnique();
+            e.Property(x => x.Pin).HasMaxLength(50);
+            e.Property(x => x.Nombre).HasMaxLength(200);
+            e.Property(x => x.Tarjeta).HasMaxLength(50);
+            e.Property(x => x.DeviceSn).HasMaxLength(50);
             e.HasOne(x => x.Emisor).WithMany().HasForeignKey(x => x.EmisorId).OnDelete(DeleteBehavior.Cascade);
         });
     }

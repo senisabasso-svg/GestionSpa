@@ -130,9 +130,9 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
     setError(null);
     setMensaje(null);
     try {
-      setMensaje('Consultando TODOS los usuarios al equipo… puede tardar hasta ~3 minutos. No cierres la página.');
+      setMensaje('Consultando el equipo y guardando en GestionSpa… puede tardar ~3 min. Si se corta, apretá de nuevo: no duplica, acumula.');
       await api.portero.exportarSocios();
-      setMensaje('CSV con todos los usuarios del portero descargado.');
+      setMensaje('CSV listo. Los usuarios quedaron en la tabla PorteroUsuariosExtraidos (solo consulta; no afecta socios).');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al exportar socios del portero');
       setMensaje(null);
