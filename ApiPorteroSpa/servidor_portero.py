@@ -193,11 +193,11 @@ def build_zkteco_response(data: bytes, db: Database) -> tuple[bytes | None, str]
         elif table == 'USERINFO':
             users = parse_userinfo(body)
             if users:
-                count = db.replace_device_users(sn, users)
-                logger.info(f"USERINFO SN={sn}: {count} usuario(s) del equipo")
+                count = db.upsert_device_users(sn, users)
+                logger.info(f"USERINFO SN={sn}: lote +{len(users)} → total {count}")
                 print(f"""
 {Colors.OKGREEN}USUARIOS RECIBIDOS DEL PORTERO (SN={sn})
-  Cantidad: {count}
+  Lote: {len(users)} · Total acumulado: {count}
   Ejemplo: {users[0].get('pin')} — {users[0].get('name')}
 {Colors.ENDC}""")
             else:
@@ -372,9 +372,20 @@ class DoorAccessServer:
         session_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
         session = RawSessionLogger(self.db, session_id, addr)
         buffer = b''
-        # Usuarios crudos "USER PIN=..." acumulados en esta sesión (respuesta a QUERY USERINFO)
-        raw_user_batch: list[dict] = []
         device_sn = DEFAULT_DEVICE_SN
+        session_user_count = 0
+
+        def _ingest_users(users: list[dict]) -> None:
+            nonlocal session_user_count
+            if not users:
+                return
+            total = self.db.upsert_device_users(device_sn, users)
+            session_user_count += len(users)
+            logger.info(
+                "USER dump SN=%s: +%s (sesión +%s) total BD=%s ej=%s %s",
+                device_sn, len(users), session_user_count, total,
+                users[0].get('pin'), users[0].get('name'),
+            )
 
         try:
             client_socket.settimeout(300)
@@ -406,22 +417,12 @@ class DoorAccessServer:
                         buffer = b''
                         continue
 
-                    # --- Líneas USER PIN=... (dump de usuarios sin HTTP completo) ---
+                    # --- Líneas USER PIN=... (dump sin HTTP; NO enviar ACK o el equipo corta el dump) ---
                     text_buffer = buffer.decode('utf-8', errors='ignore')
-                    # Si el paquete entero es solo líneas USER (sin \n final), parsear igual
                     if looks_like_user_line(text_buffer) and '\n' not in text_buffer:
                         users = parse_userinfo(text_buffer)
                         if users:
-                            raw_user_batch.extend(users)
-                            logger.info(
-                                "USER dump parcial SN=%s: +%s (total sesión %s) ej=%s %s",
-                                device_sn, len(users), len(raw_user_batch),
-                                users[0].get('pin'), users[0].get('name'),
-                            )
-                            try:
-                                client_socket.send(b'OK\r\n')
-                            except OSError:
-                                pass
+                            _ingest_users(users)
                             buffer = b''
                             continue
 
@@ -433,7 +434,7 @@ class DoorAccessServer:
                         if looks_like_user_line(message_str):
                             users = parse_userinfo(message_str)
                             if users:
-                                raw_user_batch.extend(users)
+                                _ingest_users(users)
                                 continue
 
                         try:
@@ -487,23 +488,18 @@ class DoorAccessServer:
             logger.error(f"Error con cliente {addr[0]}: {e}", exc_info=True)
 
         finally:
-            if raw_user_batch:
-                # Deduplicar por PIN (última aparición gana)
-                by_pin = {u['pin']: u for u in raw_user_batch if u.get('pin')}
-                merged = list(by_pin.values())
-                try:
-                    count = self.db.replace_device_users(device_sn, merged)
-                    logger.info(
-                        "Snapshot USER del equipo guardado SN=%s: %s usuario(s)",
-                        device_sn, count,
-                    )
-                    print(f"""
-{Colors.OKGREEN}USUARIOS DEL PORTERO GUARDADOS
+            if session_user_count:
+                total = self.db.count_device_users(device_sn)
+                logger.info(
+                    "Fin conexión USER dump SN=%s: recibidos en sesión=%s · total BD=%s",
+                    device_sn, session_user_count, total,
+                )
+                print(f"""
+{Colors.OKGREEN}USUARIOS DEL PORTERO (conexión cerrada)
   SN: {device_sn}
-  Cantidad: {count}
+  En esta conexión: {session_user_count}
+  Total acumulado: {total}
 {Colors.ENDC}""")
-                except Exception as ex:
-                    logger.error("Error guardando snapshot USER: %s", ex)
 
             if terminal_id and terminal_id in self.active_connections:
                 del self.active_connections[terminal_id]

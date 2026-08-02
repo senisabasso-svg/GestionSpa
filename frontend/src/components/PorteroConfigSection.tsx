@@ -130,9 +130,9 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
     setError(null);
     setMensaje(null);
     try {
-      setMensaje('Consultando usuarios al equipo biométrico… puede tardar hasta ~1 minuto.');
+      setMensaje('Consultando TODOS los usuarios al equipo… puede tardar hasta ~3 minutos. No cierres la página.');
       await api.portero.exportarSocios();
-      setMensaje('CSV con los usuarios cargados en el portero descargado.');
+      setMensaje('CSV con todos los usuarios del portero descargado.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al exportar socios del portero');
       setMensaje(null);

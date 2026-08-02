@@ -330,11 +330,11 @@ public class PorteroIntegrationService(
 
         var sn = string.IsNullOrWhiteSpace(config.DeviceSn) ? "7674222960189" : config.DeviceSn.Trim();
         var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl);
-        // Espera al equipo: ApiPorteroSpa encola DATA QUERY USERINFO y arma el CSV.
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(110) };
+        // Espera al equipo: acumula todos los USER hasta que el conteo se estabilice.
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(250) };
         http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", config.ApiKey.Trim());
 
-        var url = $"{baseUrl.TrimEnd('/')}/api/dispositivos/{Uri.EscapeDataString(sn)}/exportar-usuarios-equipo?wait_seconds=90";
+        var url = $"{baseUrl.TrimEnd('/')}/api/dispositivos/{Uri.EscapeDataString(sn)}/exportar-usuarios-equipo?wait_seconds=180&idle_seconds=12";
         using var response = await http.GetAsync(url);
         var bodyBytes = await response.Content.ReadAsByteArrayAsync();
         if (!response.IsSuccessStatusCode)

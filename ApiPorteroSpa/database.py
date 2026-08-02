@@ -479,13 +479,33 @@ class Database:
         finally:
             conn.close()
 
-    def replace_device_users(self, device_sn: str, users: list[dict]) -> int:
-        """Reemplaza el snapshot de usuarios del equipo con lo que mandó USERINFO."""
+    def clear_device_users(self, device_sn: str) -> None:
+        """Limpia snapshot previo antes de un nuevo DATA QUERY USERINFO."""
         conn = self.get_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat()
         try:
             cursor.execute('DELETE FROM device_users WHERE device_sn = ?', (device_sn,))
+            cursor.execute('''
+                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count)
+                VALUES (?, ?, 0)
+                ON CONFLICT(device_sn) DO UPDATE SET
+                    last_userinfo_at = excluded.last_userinfo_at,
+                    last_userinfo_count = 0
+            ''', (device_sn, now))
+            conn.commit()
+            logger.info("Snapshot device_users limpio SN=%s (nueva consulta)", device_sn)
+        finally:
+            conn.close()
+
+    def upsert_device_users(self, device_sn: str, users: list[dict]) -> int:
+        """Agrega/actualiza usuarios del dump sin borrar los ya recibidos (conexiones parciales)."""
+        if not users:
+            return self.count_device_users(device_sn)
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        try:
             for u in users:
                 pin = str(u.get('pin') or '').strip()
                 if not pin:
@@ -493,6 +513,11 @@ class Database:
                 cursor.execute('''
                     INSERT INTO device_users (device_sn, pin, name, privilege, card, synced_at)
                     VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(device_sn, pin) DO UPDATE SET
+                        name = excluded.name,
+                        privilege = excluded.privilege,
+                        card = excluded.card,
+                        synced_at = excluded.synced_at
                 ''', (
                     device_sn,
                     pin,
@@ -501,7 +526,6 @@ class Database:
                     u.get('card') or '',
                     now,
                 ))
-                # También refleja en users para el listado /api/socios
                 name = (u.get('name') or '').strip() or pin
                 cursor.execute('''
                     INSERT INTO users
@@ -517,16 +541,38 @@ class Database:
                         updated_at = CURRENT_TIMESTAMP
                 ''', (pin, name, int(u.get('privilege') or 0), u.get('card') or pin))
 
+            cursor.execute(
+                'SELECT COUNT(*) FROM device_users WHERE device_sn = ?',
+                (device_sn,),
+            )
+            total = cursor.fetchone()[0]
             cursor.execute('''
                 INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count)
                 VALUES (?, ?, ?)
                 ON CONFLICT(device_sn) DO UPDATE SET
                     last_userinfo_at = excluded.last_userinfo_at,
                     last_userinfo_count = excluded.last_userinfo_count
-            ''', (device_sn, now, len(users)))
+            ''', (device_sn, now, total))
             conn.commit()
-            logger.info("USERINFO snapshot SN=%s: %s usuario(s)", device_sn, len(users))
-            return len(users)
+            logger.info("USER dump SN=%s: +%s → total %s", device_sn, len(users), total)
+            return total
+        finally:
+            conn.close()
+
+    def replace_device_users(self, device_sn: str, users: list[dict]) -> int:
+        """Reemplazo completo (clear + upsert)."""
+        self.clear_device_users(device_sn)
+        return self.upsert_device_users(device_sn, users)
+
+    def count_device_users(self, device_sn: str) -> int:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'SELECT COUNT(*) FROM device_users WHERE device_sn = ?',
+                (device_sn,),
+            )
+            return int(cursor.fetchone()[0])
         finally:
             conn.close()
 

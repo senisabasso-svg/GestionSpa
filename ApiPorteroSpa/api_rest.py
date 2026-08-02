@@ -249,40 +249,44 @@ def list_device_users(sn):
 @require_api_key
 def export_device_users_csv(sn):
     """
-    Encola QUERY USERINFO, espera respuesta del equipo y devuelve CSV.
-    Query: wait_seconds (default 75, max 120).
+    Encola QUERY USERINFO, acumula TODOS los USER del equipo y devuelve CSV.
+    Espera a que el conteo se estabilice (sin altas nuevas por idle_seconds).
+    Query: wait_seconds (default 150, max 240), idle_seconds (default 12).
     """
-    wait_seconds = request.args.get('wait_seconds', 75, type=int)
-    wait_seconds = max(15, min(wait_seconds or 75, 120))
-    started = time.time()
-    started_iso = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(started))
+    wait_seconds = request.args.get('wait_seconds', 150, type=int)
+    wait_seconds = max(30, min(wait_seconds or 150, 240))
+    idle_seconds = request.args.get('idle_seconds', 12, type=int)
+    idle_seconds = max(6, min(idle_seconds or 12, 40))
 
+    started = time.time()
     consultar_usuarios_equipo(db, sn)
-    meta_before = db.get_device_userinfo_meta(sn) or {}
-    before_at = meta_before.get('last_userinfo_at') or ''
 
     deadline = started + wait_seconds
-    users = []
-    meta = {}
+    last_count = 0
+    stable_since = None
+    saw_data = False
+
     while time.time() < deadline:
         time.sleep(2)
-        meta = db.get_device_userinfo_meta(sn) or {}
-        at = meta.get('last_userinfo_at') or ''
-        if at and at > before_at and at >= started_iso[:19]:
-            users = db.get_device_users(sn)
-            break
-        # Si no había snapshot previo, cualquier llegada cuenta
-        if not before_at and at:
-            users = db.get_device_users(sn)
+        count = db.count_device_users(sn)
+        if count > 0:
+            saw_data = True
+        if count != last_count:
+            last_count = count
+            stable_since = time.time()
+            logger.info("Export usuarios equipo SN=%s: acumulados=%s (esperando idle)", sn, count)
+            continue
+        # Conteo estable el tiempo suficiente → dump completo
+        if saw_data and stable_since and (time.time() - stable_since) >= idle_seconds:
+            logger.info("Export usuarios equipo SN=%s: estable en %s tras %.0fs idle", sn, count, idle_seconds)
             break
 
-    if not users:
-        users = db.get_device_users(sn)
+    users = db.get_device_users(sn)
     if not users:
         return jsonify({
             'error': (
                 'El equipo no envió usuarios a tiempo. '
-                'Verificá que el portero esté conectado (heartbeat) e intentá de nuevo.'
+                'Verificá heartbeat del portero e intentá de nuevo (puede tardar ~2 min).'
             ),
         }), 504
 
@@ -302,6 +306,7 @@ def export_device_users_csv(sn):
         ]))
     csv_body = '\ufeff' + '\n'.join(lines) + '\n'
     filename = f"usuarios-equipo-{sn}-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+    logger.info("Export CSV SN=%s: %s usuario(s)", sn, len(users))
     return Response(
         csv_body,
         mimetype='text/csv; charset=utf-8',
