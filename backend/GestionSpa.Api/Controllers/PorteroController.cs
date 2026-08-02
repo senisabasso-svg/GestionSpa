@@ -88,6 +88,22 @@ public class PorteroController(
         }
     }
 
+    [HttpPost("cancelar-consulta-usuarios")]
+    public async Task<ActionResult<PorteroAccionDto>> CancelarConsultaUsuarios()
+    {
+        var emisor = await RequireEmisorAsync();
+        if (emisor is null) return Forbid();
+
+        try
+        {
+            return await portero.CancelarConsultaUsuariosPorteroAsync(emisor.Id);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
+    }
+
     private async Task<Emisor?> RequireEmisorAsync()
     {
         if (!tenant.EmisorId.HasValue) return null;

@@ -20,6 +20,13 @@ class Database:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @staticmethod
+    def _ensure_column(cursor, table: str, column: str, decl: str) -> None:
+        cursor.execute(f'PRAGMA table_info({table})')
+        cols = {row[1] for row in cursor.fetchall()}
+        if column not in cols:
+            cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {decl}')
+
     def init_db(self):
         """Inicializa las tablas si no existen"""  
         conn = self.get_connection()
@@ -145,6 +152,7 @@ class Database:
                     last_userinfo_count INTEGER DEFAULT 0
                 )
             ''')
+            self._ensure_column(cursor, 'device_meta', 'userinfo_cancel', 'INTEGER DEFAULT 0')
 
             conn.commit()
             logger.info(f"✅ Base de datos inicializada: {self.db_path}")
@@ -487,19 +495,77 @@ class Database:
         try:
             cursor.execute('DELETE FROM device_users WHERE device_sn = ?', (device_sn,))
             cursor.execute('''
-                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count)
-                VALUES (?, ?, 0)
+                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count, userinfo_cancel)
+                VALUES (?, ?, 0, 0)
                 ON CONFLICT(device_sn) DO UPDATE SET
                     last_userinfo_at = excluded.last_userinfo_at,
-                    last_userinfo_count = 0
+                    last_userinfo_count = 0,
+                    userinfo_cancel = 0
             ''', (device_sn, now))
             conn.commit()
             logger.info("Snapshot device_users limpio SN=%s (nueva consulta)", device_sn)
         finally:
             conn.close()
 
+    def cancel_userinfo_query(self, device_sn: str) -> dict:
+        """
+        Cancela consulta masiva QUERY USERINFO (export).
+        No toca altas/bajas de socios ni abrir puerta.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            # Solo DATA QUERY USERINFO (export). Nunca DATA UPDATE / DELETE / unlock.
+            cursor.execute('''
+                UPDATE device_commands
+                SET status = 'cancelled'
+                WHERE device_sn = ?
+                  AND status = 'pending'
+                  AND (
+                    command_text LIKE '%:DATA QUERY USERINFO%'
+                    OR command_text LIKE 'DATA QUERY USERINFO%'
+                    OR command_text LIKE '%DATA QUERY USERINFO'
+                  )
+            ''', (device_sn,))
+            cancelled_cmds = cursor.rowcount
+            cursor.execute('''
+                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count, userinfo_cancel)
+                VALUES (?, NULL, 0, 1)
+                ON CONFLICT(device_sn) DO UPDATE SET userinfo_cancel = 1
+            ''', (device_sn,))
+            conn.commit()
+            logger.info(
+                "Consulta USERINFO cancelada SN=%s (comandos pendientes anulados=%s)",
+                device_sn, cancelled_cmds,
+            )
+            return {
+                'device_sn': device_sn,
+                'comandos_anulados': cancelled_cmds,
+                'cancelado': True,
+            }
+        finally:
+            conn.close()
+
+    def is_userinfo_query_cancelled(self, device_sn: str) -> bool:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'SELECT userinfo_cancel FROM device_meta WHERE device_sn = ?',
+                (device_sn,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return False
+            return int(row[0] or 0) == 1
+        finally:
+            conn.close()
+
     def upsert_device_users(self, device_sn: str, users: list[dict]) -> int:
-        """Agrega/actualiza usuarios del dump sin borrar los ya recibidos (conexiones parciales)."""
+        """
+        Snapshot SOLO en device_users (export/consulta).
+        No escribe en `users` ni toca altas/bajas/sync operativo.
+        """
         if not users:
             return self.count_device_users(device_sn)
         conn = self.get_connection()
@@ -526,20 +592,6 @@ class Database:
                     u.get('card') or '',
                     now,
                 ))
-                name = (u.get('name') or '').strip() or pin
-                cursor.execute('''
-                    INSERT INTO users
-                    (user_id, first_name, last_name, email, phone, membership_type,
-                     access_level, card_id, valid_from, valid_until, status)
-                    VALUES (?, ?, '', '', '', 'device', ?, ?, NULL, NULL, 'active')
-                    ON CONFLICT(user_id) DO UPDATE SET
-                        first_name = excluded.first_name,
-                        card_id = excluded.card_id,
-                        access_level = excluded.access_level,
-                        status = 'active',
-                        membership_type = 'device',
-                        updated_at = CURRENT_TIMESTAMP
-                ''', (pin, name, int(u.get('privilege') or 0), u.get('card') or pin))
 
             cursor.execute(
                 'SELECT COUNT(*) FROM device_users WHERE device_sn = ?',
@@ -547,14 +599,14 @@ class Database:
             )
             total = cursor.fetchone()[0]
             cursor.execute('''
-                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count)
-                VALUES (?, ?, ?)
+                INSERT INTO device_meta (device_sn, last_userinfo_at, last_userinfo_count, userinfo_cancel)
+                VALUES (?, ?, ?, 0)
                 ON CONFLICT(device_sn) DO UPDATE SET
                     last_userinfo_at = excluded.last_userinfo_at,
                     last_userinfo_count = excluded.last_userinfo_count
             ''', (device_sn, now, total))
             conn.commit()
-            logger.info("USER dump SN=%s: +%s → total %s", device_sn, len(users), total)
+            logger.info("USER dump SN=%s: +%s → total %s (solo device_users)", device_sn, len(users), total)
             return total
         finally:
             conn.close()

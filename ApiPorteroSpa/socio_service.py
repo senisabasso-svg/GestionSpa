@@ -142,7 +142,7 @@ def sincronizar_fichajes(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> di
 
 def consultar_usuarios_equipo(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> dict:
     """Limpia snapshot previo y encola DATA QUERY USERINFO al equipo."""
-    db.clear_device_users(device_sn)
+    db.clear_device_users(device_sn)  # también limpia flag de cancelación
     cmd_id = db.queue_device_command(device_sn, build_query_userinfo_body())
     return {
         'device_sn': device_sn,
@@ -150,6 +150,11 @@ def consultar_usuarios_equipo(db: Database, device_sn: str = DEFAULT_DEVICE_SN) 
         'action': 'query_userinfo',
         'message': 'Consulta encolada. El equipo enviará los usuarios en el próximo ciclo (~10–90 s).',
     }
+
+
+def cancelar_consulta_usuarios_equipo(db: Database, device_sn: str = DEFAULT_DEVICE_SN) -> dict:
+    """Corta la espera del export y anula QUERY USERINFO pendientes. No afecta sync de socios."""
+    return db.cancel_userinfo_query(device_sn)
 
 
 def encolar_comando(db: Database, device_sn: str, command_body: str) -> dict:

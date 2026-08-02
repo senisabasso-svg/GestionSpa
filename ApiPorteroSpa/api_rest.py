@@ -20,6 +20,7 @@ Endpoints:
   POST /api/dispositivos/<sn>/abrir-puerta
   POST /api/dispositivos/<sn>/sincronizar-fichajes
   POST /api/dispositivos/<sn>/consultar-usuarios
+  POST /api/dispositivos/<sn>/cancelar-consulta-usuarios
   GET  /api/dispositivos/<sn>/usuarios-equipo
   POST /api/comandos
 """
@@ -35,7 +36,8 @@ from database import Database
 from log_buffer import get_lines as get_log_lines, clear as clear_log_buffer
 from socio_service import (
     crear_socio, actualizar_socio, eliminar_socio,
-    abrir_puerta, sincronizar_fichajes, consultar_usuarios_equipo, encolar_comando,
+    abrir_puerta, sincronizar_fichajes, consultar_usuarios_equipo,
+    cancelar_consulta_usuarios_equipo, encolar_comando,
 )
 from webhook_client import notify_socio_queued
 from zkteco_protocol import DEFAULT_DEVICE_SN
@@ -231,6 +233,13 @@ def query_device_users(sn):
     return jsonify(consultar_usuarios_equipo(db, sn))
 
 
+@app.route('/api/dispositivos/<sn>/cancelar-consulta-usuarios', methods=['POST'])
+@require_api_key
+def cancel_query_device_users(sn):
+    """Anula QUERY USERINFO pendiente y corta la espera del export. No afecta sync de socios."""
+    return jsonify(cancelar_consulta_usuarios_equipo(db, sn))
+
+
 @app.route('/api/dispositivos/<sn>/usuarios-equipo', methods=['GET'])
 @require_api_key
 def list_device_users(sn):
@@ -268,6 +277,12 @@ def export_device_users_csv(sn):
 
     while time.time() < deadline:
         time.sleep(2)
+        if db.is_userinfo_query_cancelled(sn):
+            logger.info("Export usuarios equipo SN=%s: cancelado por el usuario", sn)
+            return jsonify({
+                'error': 'Consulta al portero cancelada. El equipo ya no recibirá QUERY USERINFO pendiente.',
+                'cancelado': True,
+            }), 409
         count = db.count_device_users(sn)
         if count > 0:
             saw_data = True
@@ -280,6 +295,12 @@ def export_device_users_csv(sn):
         if saw_data and stable_since and (time.time() - stable_since) >= idle_seconds:
             logger.info("Export usuarios equipo SN=%s: estable en %s tras %.0fs idle", sn, count, idle_seconds)
             break
+
+    if db.is_userinfo_query_cancelled(sn):
+        return jsonify({
+            'error': 'Consulta al portero cancelada.',
+            'cancelado': True,
+        }), 409
 
     users = db.get_device_users(sn)
     if not users:

@@ -20,6 +20,7 @@ public interface IPorteroIntegrationService
     Task ProcessAccessWebhookAsync(string emisorSlug, PorteroWebhookPayload payload);
     Task<PorteroAccionDto> AbrirPuertaAsync(int emisorId);
     Task<(byte[] Content, string FileName)> ExportSociosPorteroCsvAsync(int emisorId, string emisorSlug);
+    Task<PorteroAccionDto> CancelarConsultaUsuariosPorteroAsync(int emisorId);
     Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50);
     Task AckComandoAsync(string emisorSlug, string apiKey, long comandoId, PorteroAgentAckDto ack);
     Task HeartbeatAsync(string emisorSlug, string apiKey, PorteroAgentHeartbeatDto? dto);
@@ -191,6 +192,55 @@ public class PorteroIntegrationService(
         return new PorteroAccionDto(
             "Comando encolado. El agente en la PC del spa lo tomará en el próximo ciclo (unos segundos).",
             new { modo = "pull" });
+    }
+
+    public async Task<PorteroAccionDto> CancelarConsultaUsuariosPorteroAsync(int emisorId)
+    {
+        var config = await GetConfigAsync(emisorId)
+            ?? throw new InvalidOperationException("Portero no configurado");
+        if (string.IsNullOrWhiteSpace(config.ApiKey))
+            throw new InvalidOperationException("Falta la API Key del portero");
+
+        var sn = string.IsNullOrWhiteSpace(config.DeviceSn) ? "7674222960189" : config.DeviceSn.Trim();
+        var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl).TrimEnd('/');
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", config.ApiKey.Trim());
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        var url = $"{baseUrl}/api/dispositivos/{Uri.EscapeDataString(sn)}/cancelar-consulta-usuarios";
+        using var response = await http.PostAsync(url, null);
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = body;
+            try
+            {
+                using var errDoc = JsonDocument.Parse(body);
+                if (errDoc.RootElement.TryGetProperty("error", out var errProp))
+                    detail = errProp.GetString() ?? detail;
+            }
+            catch (JsonException) { /* texto */ }
+
+            if (detail.Length > 280) detail = detail[..280];
+            throw new InvalidOperationException($"No se pudo cancelar la consulta ({(int)response.StatusCode}). {detail}");
+        }
+
+        var anulados = 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("comandos_anulados", out var c) && c.TryGetInt32(out var n))
+                anulados = n;
+        }
+        catch (JsonException) { /* ignore */ }
+
+        logger.LogInformation("Consulta USERINFO cancelada emisor={EmisorId} sn={Sn} comandosAnulados={N}", emisorId, sn, anulados);
+        return new PorteroAccionDto(
+            anulados > 0
+                ? $"Consulta de export cancelada ({anulados} QUERY). Socios, sync y abrir puerta no se tocan."
+                : "Consulta de export cancelada. Socios, sync y abrir puerta no se tocan.",
+            new { device_sn = sn, comandos_anulados = anulados });
     }
 
     public async Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50)

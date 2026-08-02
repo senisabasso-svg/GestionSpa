@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { GuardarPorteroConfig, PorteroConfig, PorteroPruebaConexion, PorteroSincronizacion } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Wifi, RefreshCw, DoorOpen, Copy, Check, Download } from 'lucide-react';
+import { Wifi, RefreshCw, DoorOpen, Copy, Check, Download, Ban } from 'lucide-react';
 
 const emptyForm: GuardarPorteroConfig = {
   habilitado: false,
@@ -27,6 +27,7 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
   const [sincronizando, setSincronizando] = useState(false);
   const [abriendo, setAbriendo] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [cancelandoConsulta, setCancelandoConsulta] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prueba, setPrueba] = useState<PorteroPruebaConexion | null>(null);
@@ -130,14 +131,29 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
     setError(null);
     setMensaje(null);
     try {
-      setMensaje('Consultando el equipo y guardando en GestionSpa… puede tardar ~3 min. Si se corta, apretá de nuevo: no duplica, acumula.');
+      setMensaje('Consulta de respaldo al equipo (no toca socios ni sync). Puede tardar ~3 min. Si se corta, reintentá: acumula por pin.');
       await api.portero.exportarSocios();
-      setMensaje('CSV listo. Los usuarios quedaron en la tabla PorteroUsuariosExtraidos (solo consulta; no afecta socios).');
+      setMensaje('CSV listo. Guardado solo en PorteroUsuariosExtraidos (respaldo; no modifica socios/cuotas/sync).');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al exportar socios del portero');
       setMensaje(null);
     } finally {
       setExportando(false);
+    }
+  };
+
+  const cancelarConsulta = async () => {
+    setCancelandoConsulta(true);
+    setError(null);
+    try {
+      const r = await api.portero.cancelarConsultaUsuarios();
+      setMensaje(r.mensaje);
+      setExportando(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cancelar consulta');
+    } finally {
+      setCancelandoConsulta(false);
     }
   };
 
@@ -172,9 +188,14 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
           <DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}
         </button>
         {!mostrarConfigCompleta && (
-          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey || !form.habilitado}>
-            <Download size={16} /> {exportando ? 'Consultando equipo…' : 'Exportar socios de portero'}
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey || !form.habilitado}>
+              <Download size={16} /> {exportando ? 'Consultando equipo…' : 'Exportar socios de portero'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={cancelarConsulta} disabled={cancelandoConsulta || !form.apiKey || !form.habilitado} title="Solo corta el dump de export; no anula altas ni abrir puerta">
+              <Ban size={16} /> {cancelandoConsulta ? 'Cancelando…' : 'Cancelar consulta'}
+            </button>
+          </>
         )}
       </div>
       {syncResult && syncResult.errores.length > 0 && (
@@ -238,6 +259,9 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
           <button type="button" className="btn btn-secondary" onClick={probar} disabled={probando}><Wifi size={16} /> {probando ? 'Probando...' : 'Probar agente'}</button>
           <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey || !form.habilitado}>
             <Download size={16} /> {exportando ? 'Consultando equipo…' : 'Exportar socios de portero'}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={cancelarConsulta} disabled={cancelandoConsulta || !form.apiKey || !form.habilitado} title="Solo corta el dump de export; no anula altas ni abrir puerta">
+            <Ban size={16} /> {cancelandoConsulta ? 'Cancelando…' : 'Cancelar consulta'}
           </button>
         </div>
 
