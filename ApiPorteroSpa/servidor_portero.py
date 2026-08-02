@@ -20,7 +20,7 @@ from config import (
 )
 from zkteco_protocol import (
     parse_http_request, http_response, build_getrequest_response,
-    parse_attlog, parse_operlog, parse_userinfo, cdata_ack_body, DEFAULT_DEVICE_SN,
+    parse_attlog, parse_operlog, parse_userinfo, looks_like_user_line, cdata_ack_body, DEFAULT_DEVICE_SN,
 )
 
 # ===== UTF-8 en consola Windows =====
@@ -372,6 +372,9 @@ class DoorAccessServer:
         session_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
         session = RawSessionLogger(self.db, session_id, addr)
         buffer = b''
+        # Usuarios crudos "USER PIN=..." acumulados en esta sesión (respuesta a QUERY USERINFO)
+        raw_user_batch: list[dict] = []
+        device_sn = DEFAULT_DEVICE_SN
 
         try:
             client_socket.settimeout(300)
@@ -403,12 +406,35 @@ class DoorAccessServer:
                         buffer = b''
                         continue
 
-                    # --- Intentar JSON por lineas ---
+                    # --- Líneas USER PIN=... (dump de usuarios sin HTTP completo) ---
                     text_buffer = buffer.decode('utf-8', errors='ignore')
+                    # Si el paquete entero es solo líneas USER (sin \n final), parsear igual
+                    if looks_like_user_line(text_buffer) and '\n' not in text_buffer:
+                        users = parse_userinfo(text_buffer)
+                        if users:
+                            raw_user_batch.extend(users)
+                            logger.info(
+                                "USER dump parcial SN=%s: +%s (total sesión %s) ej=%s %s",
+                                device_sn, len(users), len(raw_user_batch),
+                                users[0].get('pin'), users[0].get('name'),
+                            )
+                            try:
+                                client_socket.send(b'OK\r\n')
+                            except OSError:
+                                pass
+                            buffer = b''
+                            continue
+
                     while '\n' in text_buffer:
                         message_str, text_buffer = text_buffer.split('\n', 1)
                         if not message_str.strip():
                             continue
+
+                        if looks_like_user_line(message_str):
+                            users = parse_userinfo(message_str)
+                            if users:
+                                raw_user_batch.extend(users)
+                                continue
 
                         try:
                             message = json.loads(message_str)
@@ -441,7 +467,10 @@ class DoorAccessServer:
                                 'in',
                                 notes=f'linea no-JSON: {e}'
                             )
-                            logger.error(f"JSON invalido de {addr[0]}: {e} | data={message_str[:200]!r}")
+                            logger.warning(
+                                "Linea no reconocida de %s: %s | data=%r",
+                                addr[0], e, message_str[:200],
+                            )
 
                     buffer = text_buffer.encode('utf-8', errors='ignore')
 
@@ -458,6 +487,24 @@ class DoorAccessServer:
             logger.error(f"Error con cliente {addr[0]}: {e}", exc_info=True)
 
         finally:
+            if raw_user_batch:
+                # Deduplicar por PIN (última aparición gana)
+                by_pin = {u['pin']: u for u in raw_user_batch if u.get('pin')}
+                merged = list(by_pin.values())
+                try:
+                    count = self.db.replace_device_users(device_sn, merged)
+                    logger.info(
+                        "Snapshot USER del equipo guardado SN=%s: %s usuario(s)",
+                        device_sn, count,
+                    )
+                    print(f"""
+{Colors.OKGREEN}USUARIOS DEL PORTERO GUARDADOS
+  SN: {device_sn}
+  Cantidad: {count}
+{Colors.ENDC}""")
+                except Exception as ex:
+                    logger.error("Error guardando snapshot USER: %s", ex)
+
             if terminal_id and terminal_id in self.active_connections:
                 del self.active_connections[terminal_id]
                 logger.info(f"Terminal {terminal_id} desconectada")

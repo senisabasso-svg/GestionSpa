@@ -101,36 +101,62 @@ def build_query_userinfo_body() -> str:
 
 def parse_userinfo(body: str) -> list[dict]:
     """
-    Parsea USERINFO enviado por el dispositivo.
-    Formato típico por línea: PIN=1\\tName=Juan\\tPrivilege=0\\tCard=\\tPassword=
+    Parsea USERINFO / líneas USER del dispositivo.
+    Formatos vistos:
+      PIN=1\\tName=Juan\\tPrivilege=0\\tCard=
+      USER PIN=34802052\\tName=LUIS\\tPri=0\\tPasswd=\\tCard=34802052
     """
     records = []
-    for raw in body.strip().splitlines():
-        line = raw.strip().rstrip('\r')
-        if not line or line.upper().startswith('USERINFO'):
+    for raw in body.replace('\r\n', '\n').replace('\r', '\n').split('\n'):
+        line = raw.strip()
+        if not line:
             continue
+        upper = line.upper()
+        if upper.startswith('USERINFO'):
+            continue
+        # Prefijo "USER " o "USER\\t" (firmware ZKTeco)
+        if upper.startswith('USER ') or upper.startswith('USER\t'):
+            line = line[4:].lstrip(' \t')
+        elif upper.startswith('USERPIN='):
+            line = line[4:]  # deja PIN=...
+
         fields: dict[str, str] = {}
-        for part in line.split('\t'):
+        # Algunos equipos mezclan tabs y espacios alrededor de campos
+        parts = line.split('\t') if '\t' in line else line.split()
+        for part in parts:
+            part = part.strip()
             if '=' not in part:
                 continue
             key, _, value = part.partition('=')
-            fields[key.strip()] = value.strip()
-        pin = fields.get('PIN') or fields.get('Pin') or ''
+            key = key.strip()
+            # Por si quedó "USER PIN" como clave
+            if ' ' in key:
+                key = key.split()[-1]
+            fields[key] = value.strip()
+
+        pin = fields.get('PIN') or fields.get('Pin') or fields.get('pin') or ''
         if not pin:
             continue
-        pri = fields.get('Privilege') or fields.get('Pri') or '0'
+        pri = fields.get('Privilege') or fields.get('Pri') or fields.get('pri') or '0'
         try:
             privilege = int(pri)
         except ValueError:
             privilege = 0
         records.append({
             'pin': pin,
-            'name': fields.get('Name') or fields.get('NAME') or '',
+            'name': fields.get('Name') or fields.get('NAME') or fields.get('name') or '',
             'privilege': privilege,
-            'card': fields.get('Card') or fields.get('CardNo') or '',
+            'card': fields.get('Card') or fields.get('CardNo') or fields.get('card') or '',
             'password': fields.get('Password') or fields.get('Passwd') or '',
         })
     return records
+
+
+def looks_like_user_line(text: str) -> bool:
+    t = text.strip().upper()
+    return t.startswith('USER PIN=') or t.startswith('USER\tPIN=') or (
+        t.startswith('PIN=') and ('NAME=' in t or 'PRI=' in t or 'CARD=' in t)
+    )
 
 
 def build_getrequest_response(commands: list[str]) -> str:
