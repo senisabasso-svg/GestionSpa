@@ -88,15 +88,22 @@ export default function CuotasPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th><th>Socio</th><th>Cuota base</th><th>Servicios</th>
-              <th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Acciones</th>
+              <th>Nº Socio</th>
+              <th className="col-socio">Socio</th>
+              <th>Cuota base</th>
+              <th>Servicios</th>
+              <th>Total</th>
+              <th>Pagado</th>
+              <th>Saldo</th>
+              <th>Estado</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {cuotas.map(c => (
               <tr key={c.id}>
                 <td><strong>{c.numeroSocio}</strong></td>
-                <td className="cell-ellipsis" title={c.socioNombre}>{c.socioNombre}</td>
+                <td className="cell-ellipsis col-socio" title={c.socioNombre}>{c.socioNombre}</td>
                 <td>{formatUYU(c.montoCuota)}</td>
                 <td>{formatUYU(c.montoServicios)}</td>
                 <td><strong>{formatUYU(c.total)}</strong></td>

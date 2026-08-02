@@ -116,14 +116,23 @@ export default function CargosPage() {
       <div className="card table-container">
         <table className="data-table">
           <thead>
-            <tr><th>Fecha</th><th>Servicio</th><th>Persona</th><th>Tipo</th><th>Monto</th><th>Cuota</th><th>Estado</th><th>Acciones</th></tr>
+            <tr>
+              <th>Fecha</th>
+              <th className="col-nombre">Servicio</th>
+              <th className="col-socio">Persona</th>
+              <th>Tipo</th>
+              <th>Monto</th>
+              <th>Cuota</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
             {cargos.map(c => (
               <tr key={c.id}>
                 <td>{formatFecha(c.fecha)}</td>
-                <td className="cell-ellipsis" title={c.servicioNombre}>{c.servicioNombre}</td>
-                <td className="cell-ellipsis" title={c.socioNombre || c.clienteNombre || ''}>{c.socioNombre || c.clienteNombre}</td>
+                <td className="cell-ellipsis col-nombre" title={c.servicioNombre}>{c.servicioNombre}</td>
+                <td className="cell-ellipsis col-socio" title={c.socioNombre || c.clienteNombre || ''}>{c.socioNombre || c.clienteNombre}</td>
                 <td><span className="badge badge-info">{c.socioId ? 'Socio' : 'Cliente'}</span></td>
                 <td>{formatUYU(c.monto * c.cantidad)}</td>
                 <td>{c.sumarACuota ? 'Sí' : 'No'}</td>

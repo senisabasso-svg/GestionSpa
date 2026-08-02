@@ -177,15 +177,19 @@ export default function InformesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Nº Socio</th><th>Nombre</th><th>Estado cuota</th>
-                <th>Pagado</th><th>Pendiente</th><th>Cargos extra</th>
+                <th>Nº Socio</th>
+                <th className="col-nombre">Nombre</th>
+                <th>Estado cuota</th>
+                <th>Pagado</th>
+                <th>Pendiente</th>
+                <th>Cargos extra</th>
               </tr>
             </thead>
             <tbody>
               {cobranza.map(c => (
                 <tr key={c.socioId}>
                   <td><strong>{c.numeroSocio}</strong></td>
-                  <td className="cell-ellipsis" title={c.nombreCompleto}>{c.nombreCompleto}</td>
+                  <td className="cell-ellipsis col-nombre" title={c.nombreCompleto}>{c.nombreCompleto}</td>
                   <td>{pagoBadge(c.estadoCuotaMes, c.sinCuotaMes)}</td>
                   <td>{formatUYU(c.totalPagado)}</td>
                   <td style={{ color: c.totalPendiente > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: 600 }}>
@@ -221,14 +225,21 @@ export default function InformesPage() {
               <div className="card table-container">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Hora</th><th>Nº Socio</th><th>Nombre</th><th>Tipo</th><th>Resultado</th><th>Motivo</th></tr>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Nº Socio</th>
+                      <th className="col-nombre">Nombre</th>
+                      <th>Tipo</th>
+                      <th>Resultado</th>
+                      <th>Motivo</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {ingresos.detalle.map(i => (
                       <tr key={i.id}>
                         <td>{formatHora(i.fechaHora)}</td>
                         <td>{i.numeroSocio}</td>
-                        <td className="cell-ellipsis" title={i.socioNombre}>{i.socioNombre}</td>
+                        <td className="cell-ellipsis col-nombre" title={i.socioNombre}>{i.socioNombre}</td>
                         <td>{i.tipo}</td>
                         <td>
                           <span className={`badge ${i.accesoPermitido ? 'badge-success' : 'badge-danger'}`}>
@@ -352,21 +363,29 @@ export default function InformesPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Nº</th><th>Nombre</th><th>Localidad</th><th>Documento</th><th>Familia</th><th>Cuota</th>
-                  <th>Medio pago</th><th>Alta</th><th>Estado cuota</th><th>Saldo mes</th>
+                  <th>Nº</th>
+                  <th className="col-nombre">Nombre</th>
+                  <th>Localidad</th>
+                  <th className="col-documento">Documento</th>
+                  <th>Familia</th>
+                  <th>Cuota</th>
+                  <th>Medio pago</th>
+                  <th>Alta</th>
+                  <th>Estado cuota</th>
+                  <th>Saldo mes</th>
                 </tr>
               </thead>
               <tbody>
                 {sociosActivos.socios.map(s => (
                   <tr key={s.id}>
                     <td><strong>{s.numeroSocio}</strong></td>
-                    <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                    <td className="cell-ellipsis col-nombre" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
                     <td>
                       {!s.localidad || s.localidad.toLowerCase() === LOCALIDAD_PENDIENTE.toLowerCase() ? (
                         <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>{LOCALIDAD_PENDIENTE}</span>
                       ) : s.localidad}
                     </td>
-                    <td>
+                    <td className="col-documento" title={s.cedula}>
                       {s.cedula}
                       {s.tipoIdentificacion === 'Otro' && (
                         <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: '0.7rem' }}>Otro</span>

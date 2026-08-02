@@ -28,7 +28,7 @@ public class PorteroController(
     [HttpPut("config")]
     public async Task<ActionResult<PorteroConfigDto>> SaveConfig(GuardarPorteroConfigDto dto)
     {
-        var emisor = await RequireEmisorAsync();
+        var emisor = await RequireConfigUiAsync();
         if (emisor is null) return Forbid();
 
         if (dto.Habilitado && string.IsNullOrWhiteSpace(dto.ApiKey))
@@ -40,7 +40,7 @@ public class PorteroController(
     [HttpPost("probar")]
     public async Task<ActionResult<PorteroPruebaConexionDto>> ProbarConexion()
     {
-        var emisor = await RequireEmisorAsync();
+        var emisor = await RequireConfigUiAsync();
         if (emisor is null) return Forbid();
 
         return await portero.TestConnectionAsync(emisor.Id);
@@ -74,7 +74,12 @@ public class PorteroController(
     private async Task<Emisor?> RequireEmisorAsync()
     {
         if (!tenant.EmisorId.HasValue) return null;
-        var emisor = await db.Emisores.FirstOrDefaultAsync(e => e.Id == tenant.EmisorId && e.Activo);
+        return await db.Emisores.FirstOrDefaultAsync(e => e.Id == tenant.EmisorId && e.Activo);
+    }
+
+    private async Task<Emisor?> RequireConfigUiAsync()
+    {
+        var emisor = await RequireEmisorAsync();
         if (emisor is null || !emisor.MostrarConfigPortero) return null;
         return emisor;
     }

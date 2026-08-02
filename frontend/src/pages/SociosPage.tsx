@@ -151,22 +151,32 @@ export default function SociosPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Nº Socio</th><th>Nombre</th><th>Localidad</th><th>Familia</th><th>Documento</th><th>Teléfono</th>
-              <th>Medio de pago</th><th>Cuota</th><th>Alta</th><th className="col-vencimiento">Vencimiento</th><th className="col-estado">Estado</th><th>Acciones</th>
+              <th>Nº Socio</th>
+              <th className="col-nombre">Nombre</th>
+              <th>Localidad</th>
+              <th>Familia</th>
+              <th className="col-documento">Documento</th>
+              <th>Teléfono</th>
+              <th>Medio de pago</th>
+              <th>Cuota</th>
+              <th>Alta</th>
+              <th className="col-vencimiento">Vencimiento</th>
+              <th className="col-estado">Estado</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {socios.map(s => (
               <tr key={s.id}>
                 <td><strong>{s.numeroSocio}</strong></td>
-                <td className="cell-ellipsis" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
+                <td className="cell-ellipsis col-nombre" title={`${s.nombre} ${s.apellido}`}>{s.nombre} {s.apellido}</td>
                 <td>
                   {!s.ciudad || s.ciudad.toLowerCase() === LOCALIDAD_PENDIENTE.toLowerCase() ? (
                     <span className="badge badge-warning" style={{ fontSize: '0.75rem' }}>{LOCALIDAD_PENDIENTE}</span>
                   ) : s.ciudad}
                 </td>
                 <td>{s.familiaNombre || '—'}</td>
-                <td>
+                <td className="col-documento" title={s.cedula}>
                   {s.cedula}
                   {s.tipoIdentificacion === 'Otro' && (
                     <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: '0.7rem' }}>Otro</span>

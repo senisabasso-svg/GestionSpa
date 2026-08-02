@@ -13,7 +13,7 @@ const emptyForm: GuardarPorteroConfig = {
   sincronizarAutomatico: true,
 };
 
-export default function PorteroConfigSection() {
+export default function PorteroConfigSection({ mostrarConfigCompleta = true }: { mostrarConfigCompleta?: boolean }) {
   const { emisorSlug } = useAuth();
   const [form, setForm] = useState<GuardarPorteroConfig>(emptyForm);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -131,7 +131,48 @@ export default function PorteroConfigSection() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  if (loading) return <div className="loading">Cargando configuración del portero...</div>;
+  if (loading) {
+    if (!mostrarConfigCompleta) return null;
+    return <div className="loading">Cargando configuración del portero...</div>;
+  }
+
+  // Sin config completa: solo acciones, y solo si el portero ya está habilitado.
+  if (!mostrarConfigCompleta && !form.habilitado) return null;
+
+  const acciones = (
+    <div className="card">
+      <h3>{mostrarConfigCompleta ? 'Acciones' : 'Portero biométrico'}</h3>
+      {!mostrarConfigCompleta && (
+        <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
+          Sincronizá socios o abrí la puerta. La configuración avanzada la gestiona el administrador del sistema.
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: mostrarConfigCompleta ? '0.75rem' : 0 }}>
+        <button type="button" className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando || !form.habilitado}>
+          <RefreshCw size={16} /> {sincronizando ? 'Encolando...' : 'Sincronizar socios activos'}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={abrirPuerta} disabled={abriendo || !form.habilitado}>
+          <DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}
+        </button>
+      </div>
+      {syncResult && syncResult.errores.length > 0 && (
+        <div className="alert alert-error" style={{ marginTop: '1rem' }}>
+          <strong>Errores ({syncResult.fallidos}):</strong>
+          <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>{syncResult.errores.map((e, i) => <li key={i}>{e}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  );
+
+  if (!mostrarConfigCompleta) {
+    return (
+      <section id="portero">
+        {mensaje && <div className="alert alert-success">{mensaje}</div>}
+        {error && <div className="alert alert-error">{error}</div>}
+        {acciones}
+      </section>
+    );
+  }
 
   return (
     <section id="portero">
@@ -200,19 +241,7 @@ export default function PorteroConfigSection() {
         </div>
       </div>
 
-      <div className="card">
-        <h3>Acciones</h3>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando || !form.habilitado}><RefreshCw size={16} /> {sincronizando ? 'Encolando...' : 'Sincronizar socios activos'}</button>
-          <button type="button" className="btn btn-secondary" onClick={abrirPuerta} disabled={abriendo || !form.habilitado}><DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}</button>
-        </div>
-        {syncResult && syncResult.errores.length > 0 && (
-          <div className="alert alert-error" style={{ marginTop: '1rem' }}>
-            <strong>Errores ({syncResult.fallidos}):</strong>
-            <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>{syncResult.errores.map((e, i) => <li key={i}>{e}</li>)}</ul>
-          </div>
-        )}
-      </div>
+      {acciones}
     </section>
   );
 }

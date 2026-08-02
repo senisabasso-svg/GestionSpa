@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { APP_NAME } from '../config/branding';
+import { useEnhanceDataTables } from '../hooks/useEnhanceDataTables';
 
 const MOBILE_QUERY = '(max-width: 768px)';
 
@@ -14,6 +15,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  useEnhanceDataTables();
 
   const brandName = emisorNombre || APP_NAME;
   const brandSub = isSuperAdmin && !activeEmisorId ? 'Seleccioná un emisor' : (emisorSlug ? `/${emisorSlug}` : 'Panel de gestión');

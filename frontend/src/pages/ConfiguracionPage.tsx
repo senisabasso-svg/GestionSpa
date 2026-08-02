@@ -134,7 +134,7 @@ export default function ConfiguracionPage() {
         )}
       </div>
 
-      {mostrarConfigPortero && <PorteroConfigSection />}
+      <PorteroConfigSection mostrarConfigCompleta={mostrarConfigPortero} />
     </div>
   );
 }

@@ -73,13 +73,20 @@ export default function ClientesPage() {
       <div className="card table-container">
         <table className="data-table">
           <thead>
-            <tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Email</th><th>Registro</th><th>Acciones</th></tr>
+            <tr>
+              <th className="col-nombre">Nombre</th>
+              <th className="col-documento">Cédula</th>
+              <th>Teléfono</th>
+              <th>Email</th>
+              <th>Registro</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
             {clientes.map(c => (
               <tr key={c.id}>
-                <td className="cell-ellipsis" title={`${c.nombre} ${c.apellido}`}><strong>{c.nombre} {c.apellido}</strong></td>
-                <td>{c.cedula || '—'}</td>
+                <td className="cell-ellipsis col-nombre" title={`${c.nombre} ${c.apellido}`}><strong>{c.nombre} {c.apellido}</strong></td>
+                <td className="col-documento">{c.cedula || '—'}</td>
                 <td>{c.telefono || '—'}</td>
                 <td>{c.email || '—'}</td>
                 <td>{formatFecha(c.fechaRegistro)}</td>
