@@ -66,6 +66,109 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         return cuotas.Select(c => MapIndividual(c)).ToList();
     }
 
+    /// <summary>
+    /// Deshace el último cobro de la cuota (o del lote familiar) y recalcula a Pendiente/Parcial.
+    /// </summary>
+    [HttpPost("{id}/revertir-ultimo-pago")]
+    public async Task<ActionResult<object>> RevertirUltimoPago(int id)
+    {
+        var cuota = await db.CuotasMensuales.ForTenant(tenant)
+            .Include(c => c.Socio)
+            .FirstOrDefaultAsync(c => c.Id == id);
+        if (cuota == null) return NotFound();
+
+        List<Pago> aRevertir;
+
+        if (cuota.Socio.FamiliaId.HasValue)
+        {
+            var familiaId = cuota.Socio.FamiliaId.Value;
+            var pagosFamilia = await db.Pagos.ForTenant(tenant)
+                .Include(p => p.CuotaMensual!).ThenInclude(c => c!.Socio)
+                .Where(p => p.CuotaMensualId != null
+                            && p.CuotaMensual!.Mes == cuota.Mes
+                            && p.CuotaMensual.Anio == cuota.Anio
+                            && p.CuotaMensual.Socio.FamiliaId == familiaId)
+                .OrderByDescending(p => p.Fecha)
+                .ThenByDescending(p => p.Id)
+                .ToListAsync();
+
+            if (pagosFamilia.Count == 0)
+                return BadRequest(new { mensaje = "No hay pagos para revertir en esta familia" });
+
+            var ultimo = pagosFamilia[0].Fecha.ToUniversalTime();
+            // Mismo lote de cobro familiar (unos segundos).
+            aRevertir = pagosFamilia
+                .Where(p => Math.Abs((p.Fecha.ToUniversalTime() - ultimo).TotalSeconds) <= 5)
+                .ToList();
+        }
+        else
+        {
+            var ultimoPago = await db.Pagos.ForTenant(tenant)
+                .Where(p => p.CuotaMensualId == id)
+                .OrderByDescending(p => p.Fecha)
+                .ThenByDescending(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            if (ultimoPago == null)
+                return BadRequest(new { mensaje = "No hay pagos para revertir en esta cuota" });
+
+            aRevertir = [ultimoPago];
+        }
+
+        var cuotasAfectadas = new HashSet<int>();
+        int? familiaIdNorm = null;
+        foreach (var pago in aRevertir)
+        {
+            if (pago.CuotaMensualId is not int cuotaId) continue;
+            var c = await db.CuotasMensuales.ForTenant(tenant)
+                .Include(x => x.Socio)
+                .FirstOrDefaultAsync(x => x.Id == cuotaId);
+            if (c == null) continue;
+
+            c.MontoPagado = Math.Max(0, c.MontoPagado - pago.Monto);
+            CuotaService.RecalcularEstadoPago(c);
+            if (c.EstadoPago != EstadoPago.Pagado)
+                c.FechaPago = null;
+            cuotasAfectadas.Add(c.Id);
+            familiaIdNorm = c.Socio.FamiliaId ?? familiaIdNorm;
+            db.Pagos.Remove(pago);
+        }
+
+        await db.SaveChangesAsync();
+
+        foreach (var cuotaId in cuotasAfectadas)
+            await cuotaService.SincronizarCargosConEstadoCuotaAsync(cuotaId);
+
+        if (familiaIdNorm.HasValue)
+        {
+            var cuotasFam = await db.CuotasMensuales.ForTenant(tenant)
+                .Include(c => c.Socio)
+                .Where(c => c.Mes == cuota.Mes && c.Anio == cuota.Anio
+                            && c.Socio.FamiliaId == familiaIdNorm
+                            && c.Socio.Estado == EstadoSocio.Activo)
+                .ToListAsync();
+            foreach (var c in cuotasFam)
+            {
+                if (c.MontoPagado > 0) continue;
+                if (c.Total <= 0 && c.EstadoPago == EstadoPago.Pagado)
+                {
+                    c.EstadoPago = EstadoPago.Pendiente;
+                    c.FechaPago = null;
+                }
+            }
+            await db.SaveChangesAsync();
+            await cuotaService.NormalizarCuotasFamiliaAsync(familiaIdNorm.Value, cuota.Mes, cuota.Anio);
+        }
+
+        return Ok(new
+        {
+            mensaje = aRevertir.Count == 1
+                ? "Último pago revertido. La cuota quedó pendiente o parcial."
+                : $"Se revirtieron {aRevertir.Count} pagos del último cobro.",
+            revertidos = aRevertir.Count
+        });
+    }
+
     [HttpPost("{id}/pagar")]
     public async Task<ActionResult<PagoRegistradoDto>> PagarCuota(int id, RegistrarPagoDto dto)
     {

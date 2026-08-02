@@ -155,6 +155,8 @@ export const api = {
     },
     pagar: (id: number, data: unknown) =>
       request<import('../types').PagoRegistrado>(`/cuotas/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
+    revertirUltimoPago: (id: number) =>
+      request<{ mensaje: string }>(`/cuotas/${id}/revertir-ultimo-pago`, { method: 'POST' }),
     generar: (mes?: number, anio?: number) => {
       const p = new URLSearchParams();
       if (mes) p.set('mes', String(mes));

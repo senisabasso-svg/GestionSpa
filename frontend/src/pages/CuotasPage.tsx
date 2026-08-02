@@ -69,6 +69,20 @@ export default function CuotasPage() {
     setPagoError('');
   };
 
+  const revertirUltimoPago = async (c: CuotaMensual) => {
+    const quien = c.esFamilia ? `la familia ${c.socioNombre}` : c.socioNombre;
+    if (!confirm(`¿Revertir el último pago de ${quien}? Volverá a pendiente/parcial.`)) return;
+    setInfoMsg('');
+    try {
+      const res = await api.cuotas.revertirUltimoPago(c.id);
+      setInfoMsg(res.mensaje);
+      setUndoPago(null);
+      load();
+    } catch (e) {
+      setInfoMsg(e instanceof Error ? e.message : 'Error al revertir el pago');
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -153,6 +167,11 @@ export default function CuotasPage() {
                       {c.estadoPago !== 'Pagado' && (
                         <button type="button" className="btn btn-sm btn-success" onClick={() => abrirCobro(c)}>
                           Cobrar
+                        </button>
+                      )}
+                      {(c.estadoPago === 'Pagado' || c.estadoPago === 'Parcial') && c.montoPagado > 0 && (
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => revertirUltimoPago(c)}>
+                          Revertir último pago
                         </button>
                       )}
                     </td>
