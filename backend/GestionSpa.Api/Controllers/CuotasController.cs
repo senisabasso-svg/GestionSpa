@@ -67,7 +67,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
     }
 
     [HttpPost("{id}/pagar")]
-    public async Task<ActionResult<PagoDto>> PagarCuota(int id, RegistrarPagoDto dto)
+    public async Task<ActionResult<PagoRegistradoDto>> PagarCuota(int id, RegistrarPagoDto dto)
     {
         var emisorId = tenant.RequireEmisorId();
         var cuota = await db.CuotasMensuales.ForTenant(tenant)
@@ -92,7 +92,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         await ActualizarEstadoTrasPagoAsync(cuota);
         await db.SaveChangesAsync();
 
-        return ToPagoDto(pago);
+        return ToPagoRegistrado(pago, [pago.Id]);
     }
 
     [HttpPost("generar")]
@@ -125,7 +125,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         return Ok(new { mensaje, generadas });
     }
 
-    private async Task<ActionResult<PagoDto>> PagarFamiliaAsync(int emisorId, CuotaMensual cuotaOrigen, RegistrarPagoDto dto)
+    private async Task<ActionResult<PagoRegistradoDto>> PagarFamiliaAsync(int emisorId, CuotaMensual cuotaOrigen, RegistrarPagoDto dto)
     {
         var familiaId = cuotaOrigen.Socio.FamiliaId!.Value;
         await cuotaService.NormalizarCuotasFamiliaAsync(familiaId, cuotaOrigen.Mes, cuotaOrigen.Anio);
@@ -148,7 +148,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
             return BadRequest(new { mensaje = $"El monto supera el saldo familiar pendiente ({saldoFamilia:N0} UYU)" });
 
         var remaining = dto.Monto;
-        Pago? primerPago = null;
+        var creados = new List<Pago>();
 
         foreach (var cuota in cuotasFamilia)
         {
@@ -159,7 +159,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
             var apply = Math.Min(remaining, need);
             var pagoParcial = new RegistrarPagoDto(apply, dto.MetodoPago, dto.Referencia, dto.RegistradoPor, dto.Notas, null, cuota.Id);
             var pago = RegistrarPagoEnCuota(emisorId, cuota, pagoParcial);
-            primerPago ??= pago;
+            creados.Add(pago);
             await ActualizarEstadoTrasPagoAsync(cuota);
             remaining -= apply;
         }
@@ -167,9 +167,10 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         await db.SaveChangesAsync();
         await cuotaService.MarcarIntegrantesFamiliaCubiertosAsync(familiaId, cuotaOrigen.Mes, cuotaOrigen.Anio);
 
-        return primerPago == null
-            ? BadRequest(new { mensaje = "No se pudo registrar el pago" })
-            : ToPagoDto(primerPago);
+        if (creados.Count == 0)
+            return BadRequest(new { mensaje = "No se pudo registrar el pago" });
+
+        return ToPagoRegistrado(creados[0], creados.Select(p => p.Id).ToList());
     }
 
     private Pago RegistrarPagoEnCuota(int emisorId, CuotaMensual cuota, RegistrarPagoDto dto)
@@ -271,7 +272,8 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         c.Total, c.MontoPagado, c.Total - c.MontoPagado,
         c.EstadoPago, c.FechaVencimiento, c.FechaPago);
 
-    private static PagoDto ToPagoDto(Pago pago) => new(
+    private static PagoRegistradoDto ToPagoRegistrado(Pago pago, IReadOnlyList<int> idsRevertibles) => new(
         pago.Id, pago.Monto, pago.MetodoPago, pago.Fecha,
-        pago.Referencia, pago.RegistradoPor, pago.CargoId, pago.CuotaMensualId);
+        pago.Referencia, pago.RegistradoPor, pago.CargoId, pago.CuotaMensualId,
+        idsRevertibles, SegundosParaRevertir: 10);
 }

@@ -140,7 +140,8 @@ export const api = {
       return request<import('../types').Cargo[]>(`/cargos${q}`);
     },
     create: (data: unknown) => request<import('../types').Cargo>('/cargos', { method: 'POST', body: JSON.stringify(data) }),
-    pagar: (id: number, data: unknown) => request<unknown>(`/cargos/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
+    pagar: (id: number, data: unknown) =>
+      request<import('../types').PagoRegistrado>(`/cargos/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
     anular: (id: number, motivo?: string) => request<import('../types').Cargo>(`/cargos/${id}/anular`, { method: 'POST', body: JSON.stringify({ motivo: motivo || null }) }),
   },
   cuotas: {
@@ -152,13 +153,18 @@ export const api = {
       if (buscar) p.set('buscar', buscar);
       return request<import('../types').CuotaMensual[]>(`/cuotas?${p}`);
     },
-    pagar: (id: number, data: unknown) => request<unknown>(`/cuotas/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
+    pagar: (id: number, data: unknown) =>
+      request<import('../types').PagoRegistrado>(`/cuotas/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),
     generar: (mes?: number, anio?: number) => {
       const p = new URLSearchParams();
       if (mes) p.set('mes', String(mes));
       if (anio) p.set('anio', String(anio));
       return request<{ mensaje: string }>(`/cuotas/generar?${p}`, { method: 'POST' });
     },
+  },
+  pagos: {
+    revertir: (ids: number[]) =>
+      request<{ mensaje: string }>('/pagos/revertir', { method: 'POST', body: JSON.stringify({ ids }) }),
   },
   ingresos: {
     list: (fecha?: string) => request<import('../types').Ingreso[]>(`/ingresos${fecha ? '?fecha=' + fecha : ''}`),

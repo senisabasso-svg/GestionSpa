@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { Cargo, Socio, Cliente, Servicio, EstadoPago } from '../types';
+import type { Cargo, Socio, Cliente, Servicio, EstadoPago, PagoRegistrado } from '../types';
 import { formatUYU, formatFecha } from '../types';
 import { Plus } from 'lucide-react';
+import UndoPagoBanner from '../components/UndoPagoBanner';
 
 const pagoBadge = (estado: EstadoPago) => {
   const map: Record<EstadoPago, string> = {
@@ -29,6 +30,9 @@ export default function CargosPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [pagoError, setPagoError] = useState('');
+  const [undoPago, setUndoPago] = useState<PagoRegistrado | null>(null);
+  const [undoEtiqueta, setUndoEtiqueta] = useState('');
+  const dismissUndo = useCallback(() => setUndoPago(null), []);
 
   const openNew = () => {
     setTipo('socio');
@@ -76,7 +80,10 @@ export default function CargosPage() {
     if (pagoForm.monto <= 0) { setPagoError('El monto debe ser mayor a 0'); return; }
     if (pagoForm.monto > saldo) { setPagoError(`El monto no puede superar ${formatUYU(saldo)}`); return; }
     try {
-      await api.cargos.pagar(pagoModal.id, pagoForm);
+      const registrado = await api.cargos.pagar(pagoModal.id, pagoForm);
+      const quien = pagoModal.socioNombre || pagoModal.clienteNombre || pagoModal.servicioNombre;
+      setUndoEtiqueta(quien);
+      setUndoPago(registrado);
       setPagoModal(null);
       load();
     } catch (e) {
@@ -112,6 +119,13 @@ export default function CargosPage() {
       <div className="toolbar">
         <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Cargo</button>
       </div>
+
+      <UndoPagoBanner
+        pago={undoPago}
+        etiqueta={undoEtiqueta}
+        onDismiss={dismissUndo}
+        onReverted={load}
+      />
 
       <div className="card table-container">
         <table className="data-table">

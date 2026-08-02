@@ -100,7 +100,7 @@ public class CargosController(AppDbContext db, CuotaService cuotaService, ITenan
     }
 
     [HttpPost("{id}/pagar")]
-    public async Task<ActionResult<PagoDto>> PagarCargo(int id, RegistrarPagoDto dto)
+    public async Task<ActionResult<PagoRegistradoDto>> PagarCargo(int id, RegistrarPagoDto dto)
     {
         var emisorId = tenant.RequireEmisorId();
         var cargo = await db.Cargos.ForTenant(tenant).FirstOrDefaultAsync(c => c.Id == id);
@@ -144,8 +144,10 @@ public class CargosController(AppDbContext db, CuotaService cuotaService, ITenan
 
         await db.SaveChangesAsync();
 
-        return new PagoDto(pago.Id, pago.Monto, pago.MetodoPago, pago.Fecha,
-            pago.Referencia, pago.RegistradoPor, pago.CargoId, pago.CuotaMensualId);
+        return new PagoRegistradoDto(
+            pago.Id, pago.Monto, pago.MetodoPago, pago.Fecha,
+            pago.Referencia, pago.RegistradoPor, pago.CargoId, pago.CuotaMensualId,
+            [pago.Id], SegundosParaRevertir: 10);
     }
 
     [HttpPost("{id}/anular")]

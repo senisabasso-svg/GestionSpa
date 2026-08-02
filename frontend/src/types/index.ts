@@ -148,6 +148,19 @@ export interface CuotaFamiliaIntegrante {
   montoServicios: number;
 }
 
+export interface PagoRegistrado {
+  id: number;
+  monto: number;
+  metodoPago: string;
+  fecha: string;
+  referencia?: string;
+  registradoPor?: string;
+  cargoId?: number;
+  cuotaMensualId?: number;
+  idsRevertibles: number[];
+  segundosParaRevertir: number;
+}
+
 export interface CuotaMensual {
   id: number;
   socioId: number;

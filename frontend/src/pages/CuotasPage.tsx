@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { CuotaMensual, EstadoPago } from '../types';
+import type { CuotaMensual, EstadoPago, PagoRegistrado } from '../types';
 import { MESES, formatUYU } from '../types';
+import UndoPagoBanner from '../components/UndoPagoBanner';
 
 const pagoBadge = (estado: EstadoPago) => {
   const map: Record<EstadoPago, string> = {
@@ -21,6 +22,9 @@ export default function CuotasPage() {
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [pagoError, setPagoError] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
+  const [undoPago, setUndoPago] = useState<PagoRegistrado | null>(null);
+  const [undoEtiqueta, setUndoEtiqueta] = useState('');
+  const dismissUndo = useCallback(() => setUndoPago(null), []);
 
   useEffect(() => {
     const t = setTimeout(() => setBuscarDebounced(buscar), 300);
@@ -49,7 +53,9 @@ export default function CuotasPage() {
     setPagoError('');
     if (pagoForm.monto <= 0) { setPagoError('El monto debe ser mayor a 0'); return; }
     try {
-      await api.cuotas.pagar(pagoModal.id, pagoForm);
+      const registrado = await api.cuotas.pagar(pagoModal.id, pagoForm);
+      setUndoEtiqueta(pagoModal.socioNombre);
+      setUndoPago(registrado);
       setPagoModal(null);
       load();
     } catch (e) {
@@ -90,6 +96,12 @@ export default function CuotasPage() {
       </div>
 
       {infoMsg && <div className="alert alert-success">{infoMsg}</div>}
+      <UndoPagoBanner
+        pago={undoPago}
+        etiqueta={undoEtiqueta}
+        onDismiss={dismissUndo}
+        onReverted={load}
+      />
 
       <div className="card table-container">
         <table className="data-table">

@@ -206,6 +206,25 @@ public class CuotaService(AppDbContext db)
             cargo.EstadoPago = EstadoPago.Pagado;
     }
 
+    public async Task SincronizarCargosConEstadoCuotaAsync(int cuotaId)
+    {
+        var cuota = await db.CuotasMensuales.FirstOrDefaultAsync(c => c.Id == cuotaId);
+        if (cuota == null) return;
+
+        var cargos = await db.Cargos
+            .Where(c => c.CuotaMensualId == cuotaId && c.SumarACuota && c.EstadoPago != EstadoPago.Anulado)
+            .ToListAsync();
+
+        foreach (var cargo in cargos)
+        {
+            cargo.EstadoPago = cuota.EstadoPago == EstadoPago.Pagado
+                ? EstadoPago.Pagado
+                : EstadoPago.Pendiente;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>
     /// Tras cobrar la familia: integrantes con saldo 0 quedan Pagado (acceso / ingreso).
     /// </summary>

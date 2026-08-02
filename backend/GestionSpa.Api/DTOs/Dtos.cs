@@ -77,6 +77,15 @@ public record PagoDto(
     int Id, decimal Monto, MetodoPago MetodoPago, DateTime Fecha,
     string? Referencia, string? RegistradoPor, int? CargoId, int? CuotaMensualId);
 
+/// <summary>Respuesta al cobrar: incluye ids para revertir dentro de la ventana corta.</summary>
+public record PagoRegistradoDto(
+    int Id, decimal Monto, MetodoPago MetodoPago, DateTime Fecha,
+    string? Referencia, string? RegistradoPor, int? CargoId, int? CuotaMensualId,
+    IReadOnlyList<int> IdsRevertibles,
+    int SegundosParaRevertir = 10);
+
+public record RevertirPagosDto(IReadOnlyList<int> Ids);
+
 public record IngresoDto(
     int Id, int SocioId, string NumeroSocio, string SocioNombre,
     DateTime FechaHora, TipoIngreso Tipo, bool AccesoPermitido, string? MotivoRechazo);
