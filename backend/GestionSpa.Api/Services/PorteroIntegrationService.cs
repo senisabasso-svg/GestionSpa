@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using GestionSpa.Api.Data;
 using GestionSpa.Api.DTOs;
@@ -17,6 +19,7 @@ public interface IPorteroIntegrationService
     Task TryRemoveSocioAsync(Socio socio);
     Task ProcessAccessWebhookAsync(string emisorSlug, PorteroWebhookPayload payload);
     Task<PorteroAccionDto> AbrirPuertaAsync(int emisorId);
+    Task<(byte[] Content, string FileName)> ExportSociosPorteroCsvAsync(int emisorId, string emisorSlug);
     Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50);
     Task AckComandoAsync(string emisorSlug, string apiKey, long comandoId, PorteroAgentAckDto ack);
     Task HeartbeatAsync(string emisorSlug, string apiKey, PorteroAgentHeartbeatDto? dto);
@@ -316,6 +319,82 @@ public class PorteroIntegrationService(
             ToPorteroPin(s) == pin ||
             new string(s.Cedula.Where(char.IsDigit).ToArray()) == pin ||
             s.NumeroSocio == pin);
+    }
+
+    public async Task<(byte[] Content, string FileName)> ExportSociosPorteroCsvAsync(int emisorId, string emisorSlug)
+    {
+        var config = await GetConfigAsync(emisorId)
+            ?? throw new InvalidOperationException("Portero no configurado");
+        if (string.IsNullOrWhiteSpace(config.ApiKey))
+            throw new InvalidOperationException("Falta la API Key del portero");
+
+        var baseUrl = ResolveApiPorteroBaseUrl(config.ApiUrl);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        http.DefaultRequestHeaders.TryAddWithoutValidation("X-API-Key", config.ApiKey.Trim());
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        var url = $"{baseUrl.TrimEnd('/')}/api/socios?limit=5000";
+        using var response = await http.GetAsync(url);
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = body.Length > 200 ? body[..200] : body;
+            throw new InvalidOperationException(
+                $"No se pudo leer socios de ApiPorteroSpa ({(int)response.StatusCode}). {detail}");
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        if (!doc.RootElement.TryGetProperty("socios", out var sociosEl) || sociosEl.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Respuesta inválida de ApiPorteroSpa");
+
+        var sb = new StringBuilder();
+        sb.AppendLine("pin;nombre;apellido;estado;tarjeta;telefono;email;valido_desde;valido_hasta;creado");
+        foreach (var s in sociosEl.EnumerateArray())
+        {
+            sb.Append(Csv(GetJsonString(s, "user_id"))).Append(';')
+                .Append(Csv(GetJsonString(s, "first_name"))).Append(';')
+                .Append(Csv(GetJsonString(s, "last_name"))).Append(';')
+                .Append(Csv(GetJsonString(s, "status"))).Append(';')
+                .Append(Csv(GetJsonString(s, "card_id"))).Append(';')
+                .Append(Csv(GetJsonString(s, "phone"))).Append(';')
+                .Append(Csv(GetJsonString(s, "email"))).Append(';')
+                .Append(Csv(GetJsonString(s, "valid_from"))).Append(';')
+                .Append(Csv(GetJsonString(s, "valid_until"))).Append(';')
+                .Append(Csv(GetJsonString(s, "created_at")))
+                .AppendLine();
+        }
+
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmm");
+        var fileName = $"socios-portero-{emisorSlug}-{stamp}.csv";
+        // BOM para que Excel abra bien los acentos
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return (bytes, fileName);
+    }
+
+    private static string ResolveApiPorteroBaseUrl(string? apiUrl)
+    {
+        var env = Environment.GetEnvironmentVariable("API_PORTERO_BASE_URL");
+        if (!string.IsNullOrWhiteSpace(env))
+            return env.Trim().TrimEnd('/');
+
+        if (!string.IsNullOrWhiteSpace(apiUrl)
+            && !string.Equals(apiUrl.Trim(), "pull", StringComparison.OrdinalIgnoreCase)
+            && (apiUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || apiUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+            return apiUrl.Trim().TrimEnd('/');
+
+        return "https://apiporterospa-production.up.railway.app";
+    }
+
+    private static string GetJsonString(JsonElement el, string name) =>
+        el.TryGetProperty(name, out var p) && p.ValueKind != JsonValueKind.Null ? (p.ToString() ?? "") : "";
+
+    private static string Csv(string? value)
+    {
+        var v = value ?? "";
+        if (v.Contains('"') || v.Contains(';') || v.Contains('\n') || v.Contains('\r'))
+            return $"\"{v.Replace("\"", "\"\"")}\"";
+        return v;
     }
 
     public static string ToPorteroPin(Socio socio)

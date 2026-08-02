@@ -227,6 +227,7 @@ export const api = {
       request<import('../types').PorteroPruebaConexion>('/portero/probar', { method: 'POST' }),
     sincronizar: () => request<import('../types').PorteroSincronizacion>('/portero/sincronizar', { method: 'POST' }),
     abrirPuerta: () => request<import('../types').PorteroAccion>('/portero/abrir-puerta', { method: 'POST' }),
+    exportarSocios: () => downloadFile('/portero/exportar-socios', 'socios-portero.csv'),
   },
   configuracion: {
     exportBackup: () => downloadFile('/configuracion/export', 'gestionspa-backup.json'),

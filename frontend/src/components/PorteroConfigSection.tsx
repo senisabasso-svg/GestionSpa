@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { GuardarPorteroConfig, PorteroConfig, PorteroPruebaConexion, PorteroSincronizacion } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Wifi, RefreshCw, DoorOpen, Copy, Check } from 'lucide-react';
+import { Wifi, RefreshCw, DoorOpen, Copy, Check, Download } from 'lucide-react';
 
 const emptyForm: GuardarPorteroConfig = {
   habilitado: false,
@@ -26,6 +26,7 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
   const [probando, setProbando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [abriendo, setAbriendo] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prueba, setPrueba] = useState<PorteroPruebaConexion | null>(null);
@@ -124,6 +125,20 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
     }
   };
 
+  const exportarSocios = async () => {
+    setExportando(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      await api.portero.exportarSocios();
+      setMensaje('CSV de socios del portero descargado.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al exportar socios del portero');
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const copyText = async (value: string, key: string) => {
     if (!value) return;
     await navigator.clipboard.writeText(value);
@@ -154,6 +169,11 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
         <button type="button" className="btn btn-secondary" onClick={abrirPuerta} disabled={abriendo || !form.habilitado}>
           <DoorOpen size={16} /> {abriendo ? 'Encolando...' : 'Abrir puerta'}
         </button>
+        {!mostrarConfigCompleta && (
+          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey}>
+            <Download size={16} /> {exportando ? 'Exportando...' : 'Exportar socios de portero'}
+          </button>
+        )}
       </div>
       {syncResult && syncResult.errores.length > 0 && (
         <div className="alert alert-error" style={{ marginTop: '1rem' }}>
@@ -214,6 +234,9 @@ export default function PorteroConfigSection({ mostrarConfigCompleta = true }: {
         <div className="form-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
           <button type="button" className="btn btn-secondary" onClick={probar} disabled={probando}><Wifi size={16} /> {probando ? 'Probando...' : 'Probar agente'}</button>
+          <button type="button" className="btn btn-secondary" onClick={exportarSocios} disabled={exportando || !form.apiKey}>
+            <Download size={16} /> {exportando ? 'Exportando...' : 'Exportar socios de portero'}
+          </button>
         </div>
 
         {prueba && <div className={`alert ${prueba.ok ? 'alert-success' : 'alert-error'}`} style={{ marginTop: '1rem' }}>{prueba.mensaje}</div>}

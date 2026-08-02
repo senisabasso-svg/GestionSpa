@@ -71,6 +71,23 @@ public class PorteroController(
         }
     }
 
+    [HttpGet("exportar-socios")]
+    public async Task<IActionResult> ExportarSocios()
+    {
+        var emisor = await RequireEmisorAsync();
+        if (emisor is null) return Forbid();
+
+        try
+        {
+            var (content, fileName) = await portero.ExportSociosPorteroCsvAsync(emisor.Id, emisor.Slug);
+            return File(content, "text/csv; charset=utf-8", fileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
+    }
+
     private async Task<Emisor?> RequireEmisorAsync()
     {
         if (!tenant.EmisorId.HasValue) return null;
