@@ -14,13 +14,20 @@ export default function CuotasPage() {
   const [cuotas, setCuotas] = useState<CuotaMensual[]>([]);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [anio, setAnio] = useState(new Date().getFullYear());
+  const [buscar, setBuscar] = useState('');
+  const [buscarDebounced, setBuscarDebounced] = useState('');
   const [pagoModal, setPagoModal] = useState<CuotaMensual | null>(null);
   const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
   const [pagoError, setPagoError] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
 
-  const load = () => api.cuotas.list(mes, anio).then(setCuotas).catch(console.error);
-  useEffect(() => { load(); }, [mes, anio]);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscarDebounced(buscar), 300);
+    return () => clearTimeout(t);
+  }, [buscar]);
+
+  const load = () => api.cuotas.list(mes, anio, undefined, buscarDebounced || undefined).then(setCuotas).catch(console.error);
+  useEffect(() => { load(); }, [mes, anio, buscarDebounced]);
 
   const generar = async () => {
     setInfoMsg('');
@@ -57,6 +64,15 @@ export default function CuotasPage() {
       </div>
 
       <div className="toolbar">
+        <div className="search">
+          <input
+            className="form-control"
+            placeholder="Buscar por nombre y apellido o nº socio..."
+            value={buscar}
+            onChange={e => setBuscar(e.target.value)}
+            maxLength={100}
+          />
+        </div>
         <select className="form-control" style={{ width: 150 }} value={mes} onChange={e => setMes(Number(e.target.value))}>
           {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
@@ -98,7 +114,13 @@ export default function CuotasPage() {
             ))}
           </tbody>
         </table>
-        {cuotas.length === 0 && <div className="empty-state">No hay cuotas para este período. Generá las cuotas del mes.</div>}
+        {cuotas.length === 0 && (
+          <div className="empty-state">
+            {buscarDebounced
+              ? 'No hay cuotas que coincidan con la búsqueda.'
+              : 'No hay cuotas para este período. Generá las cuotas del mes.'}
+          </div>
+        )}
       </div>
 
       {pagoModal && (

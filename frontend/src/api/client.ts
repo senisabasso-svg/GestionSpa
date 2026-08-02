@@ -144,11 +144,12 @@ export const api = {
     anular: (id: number, motivo?: string) => request<import('../types').Cargo>(`/cargos/${id}/anular`, { method: 'POST', body: JSON.stringify({ motivo: motivo || null }) }),
   },
   cuotas: {
-    list: (mes?: number, anio?: number, estado?: string) => {
+    list: (mes?: number, anio?: number, estado?: string, buscar?: string) => {
       const p = new URLSearchParams();
       if (mes) p.set('mes', String(mes));
       if (anio) p.set('anio', String(anio));
       if (estado) p.set('estado', estado);
+      if (buscar) p.set('buscar', buscar);
       return request<import('../types').CuotaMensual[]>(`/cuotas?${p}`);
     },
     pagar: (id: number, data: unknown) => request<unknown>(`/cuotas/${id}/pagar`, { method: 'POST', body: JSON.stringify(data) }),

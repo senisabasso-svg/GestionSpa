@@ -139,7 +139,7 @@ export default function SociosPage() {
 
       <div className="toolbar">
         <div className="search">
-          <input className="form-control" placeholder="Buscar por nombre, documento o número..." value={buscar} onChange={e => setBuscar(e.target.value)} maxLength={100} />
+          <input className="form-control" placeholder="Buscar por nombre y apellido, documento o nº socio..." value={buscar} onChange={e => setBuscar(e.target.value)} maxLength={100} />
         </div>
         <button className="btn btn-secondary" onClick={exportarActivos} disabled={exporting}>
           <Download size={16} /> {exporting ? 'Exportando...' : 'Exportar activos'}

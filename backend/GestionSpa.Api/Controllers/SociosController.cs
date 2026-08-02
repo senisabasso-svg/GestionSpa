@@ -29,7 +29,8 @@ public class SociosController(
 
         var term = ValidationHelper.SanitizeSearchTerm(buscar);
         if (term != null)
-            socios = socios.Where(s => ValidationHelper.MatchesSearch(term, s.NumeroSocio, s.Nombre, s.Apellido, s.Cedula, s.Ciudad)).ToList();
+            socios = socios.Where(s => ValidationHelper.MatchesSearch(
+                term, s.NumeroSocio, s.Nombre, s.Apellido, $"{s.Nombre} {s.Apellido}", s.Cedula, s.Ciudad)).ToList();
 
         return socios.Select(Map).ToList();
     }

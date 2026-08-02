@@ -15,7 +15,7 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
 {
     [HttpGet]
     public async Task<ActionResult<List<CuotaMensualDto>>> GetAll(
-        [FromQuery] int? mes, [FromQuery] int? anio, [FromQuery] EstadoPago? estado)
+        [FromQuery] int? mes, [FromQuery] int? anio, [FromQuery] EstadoPago? estado, [FromQuery] string? buscar)
     {
         var query = db.CuotasMensuales.ForTenant(tenant)
             .Include(c => c.Socio)
@@ -27,6 +27,18 @@ public class CuotasController(AppDbContext db, CuotaService cuotaService, ITenan
         if (estado.HasValue) query = query.Where(c => c.EstadoPago == estado);
 
         var cuotas = await query.OrderByDescending(c => c.Anio).ThenByDescending(c => c.Mes).ToListAsync();
+
+        var term = ValidationHelper.SanitizeSearchTerm(buscar);
+        if (term != null)
+        {
+            cuotas = cuotas.Where(c => ValidationHelper.MatchesSearch(
+                term,
+                c.Socio.NumeroSocio,
+                c.Socio.Nombre,
+                c.Socio.Apellido,
+                $"{c.Socio.Nombre} {c.Socio.Apellido}")).ToList();
+        }
+
         return cuotas.Select(Map).ToList();
     }
 
