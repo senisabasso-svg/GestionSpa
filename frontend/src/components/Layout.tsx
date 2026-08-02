@@ -10,7 +10,7 @@ import { APP_NAME } from '../config/branding';
 const MOBILE_QUERY = '(max-width: 768px)';
 
 export default function Layout() {
-  const { isSuperAdmin, emisorNombre, emisorSlug, nombre, logout, activeEmisorId } = useAuth();
+  const { isSuperAdmin, emisorNombre, emisorSlug, nombre, logout, activeEmisorId, mostrarControlIngreso } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -79,10 +79,12 @@ export default function Layout() {
               {label}
             </NavLink>
           ))}
-          <a href={ingresoUrl} className="nav-link" onClick={() => { if (isMobile) closeSidebar(); }}>
-            <DoorOpen size={18} />
-            Control de Ingreso
-          </a>
+          {mostrarControlIngreso && (
+            <a href={ingresoUrl} className="nav-link" onClick={() => { if (isMobile) closeSidebar(); }}>
+              <DoorOpen size={18} />
+              Control de Ingreso
+            </a>
+          )}
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">{nombre}</div>

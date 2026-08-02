@@ -56,6 +56,7 @@ export interface Emisor {
   fechaAlta: string;
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
+  mostrarControlIngreso: boolean;
 }
 
 export interface CrearEmisorPayload {
@@ -68,6 +69,7 @@ export interface CrearEmisorPayload {
   adminNombre: string;
   mostrarConfigPortero?: boolean;
   mostrarSorteo?: boolean;
+  mostrarControlIngreso?: boolean;
 }
 
 export interface ActualizarEmisorPayload {
@@ -77,6 +79,7 @@ export interface ActualizarEmisorPayload {
   departamento?: string | null;
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
+  mostrarControlIngreso: boolean;
 }
 
 export interface EmisorPublico {
@@ -84,6 +87,7 @@ export interface EmisorPublico {
   nombre: string;
   slug: string;
   ciudad?: string;
+  mostrarControlIngreso: boolean;
 }
 
 export interface LoginResponse {
@@ -97,6 +101,7 @@ export interface LoginResponse {
   emisorSlug: string | null;
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
+  mostrarControlIngreso: boolean;
 }
 
 export interface Cliente {

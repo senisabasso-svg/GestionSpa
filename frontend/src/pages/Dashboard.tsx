@@ -7,7 +7,7 @@ import { Users, DollarSign, AlertTriangle, DoorOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
-  const { emisorNombre, emisorSlug } = useAuth();
+  const { emisorNombre, emisorSlug, mostrarControlIngreso } = useAuth();
   const [resumen, setResumen] = useState<InformeResumen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,7 +73,9 @@ export default function Dashboard() {
           desde un solo lugar. Cada empresa opera de forma independiente con sus propios datos.
         </p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <Link to={emisorSlug ? `/ingreso?emisor=${emisorSlug}` : '/ingreso'} className="btn btn-primary">Abrir Control de Ingreso</Link>
+          {mostrarControlIngreso && (
+            <Link to={emisorSlug ? `/ingreso?emisor=${emisorSlug}` : '/ingreso'} className="btn btn-primary">Abrir Control de Ingreso</Link>
+          )}
           <Link to="/informes" className="btn btn-secondary">Ver Informes</Link>
         </div>
       </div>

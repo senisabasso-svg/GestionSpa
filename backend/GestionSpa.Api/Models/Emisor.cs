@@ -16,6 +16,9 @@ public class Emisor
     /// <summary>Si el admin del emisor ve el botón de sorteo en Informes.</summary>
     public bool MostrarSorteo { get; set; }
 
+    /// <summary>Si se muestra el kiosk Control de Ingreso (menú, panel y URL pública).</summary>
+    public bool MostrarControlIngreso { get; set; } = true;
+
     public ICollection<Usuario> Usuarios { get; set; } = [];
     public ICollection<Familia> Familias { get; set; } = [];
     public ICollection<Socio> Socios { get; set; } = [];

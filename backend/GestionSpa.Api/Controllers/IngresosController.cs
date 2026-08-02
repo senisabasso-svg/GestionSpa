@@ -37,6 +37,9 @@ public class IngresosController(AppDbContext db, IngresoAccesoService accesoServ
         if (emisor == null)
             return Ok(new ResultadoIngresoDto(false, "Emisor no encontrado", null, dto.NumeroSocio, null, null));
 
+        if (!emisor.MostrarControlIngreso)
+            return Ok(new ResultadoIngresoDto(false, "Control de ingreso no disponible para este spa", null, dto.NumeroSocio, null, null));
+
         var socio = await db.Socios
             .FirstOrDefaultAsync(s => s.EmisorId == emisor.Id && s.NumeroSocio == dto.NumeroSocio.Trim());
 

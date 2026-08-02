@@ -23,9 +23,16 @@ export default function IngresoPage() {
     api.emisores.publico(emisorSlug).then(setEmisor).catch(() => setEmisor(null));
   }, [emisorSlug]);
 
+  const kioskDeshabilitado = !!emisor && emisor.mostrarControlIngreso === false;
+
   const validar = async (n: string) => {
     if (!emisorSlug) {
       setErrorMsg('Falta el parámetro ?emisor= en la URL');
+      setResultado(null);
+      return;
+    }
+    if (kioskDeshabilitado) {
+      setErrorMsg('Control de ingreso no disponible para este spa');
       setResultado(null);
       return;
     }
@@ -73,61 +80,69 @@ export default function IngresoPage() {
         <div className="kiosk-title">{emisor?.nombre || 'Control de Ingreso'}</div>
         <div className="kiosk-subtitle">{emisor?.ciudad ? `${emisor.ciudad}, Uruguay` : 'Ingresá tu número de socio'}</div>
 
-        <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
-          Ingresá tu número de socio (4 dígitos)
-        </p>
-
-        <input
-          ref={inputRef}
-          className="kiosk-input"
-          value={numero}
-          onChange={e => {
-            setErrorMsg('');
-            setNumero(e.target.value.replace(/\D/g, '').slice(0, MAX_DIGITOS));
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="----"
-          maxLength={MAX_DIGITOS}
-          inputMode="numeric"
-          autoComplete="off"
-        />
-
-        {errorMsg && (
+        {kioskDeshabilitado ? (
           <div className="kiosk-result error" style={{ marginTop: '1rem' }}>
-            {errorMsg}
+            Control de ingreso no disponible para este spa. El acceso se gestiona por portero biométrico.
           </div>
-        )}
+        ) : (
+          <>
+            <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
+              Ingresá tu número de socio (4 dígitos)
+            </p>
 
-        <div className="kiosk-keypad">
-          {['1','2','3','4','5','6','7','8','9','C','0','OK'].map(key => (
-            <button
-              key={key}
-              className={`kiosk-key${key === 'OK' ? ' action' : ''}${key === 'C' ? ' action' : ''}`}
-              onClick={() => pressKey(key)}
-              disabled={loading || (key !== 'OK' && key !== 'C' && key !== 'DEL' && numero.length >= MAX_DIGITOS)}
-            >
-              {key === 'OK' ? '✓' : key === 'C' ? '✕' : key}
-            </button>
-          ))}
-        </div>
+            <input
+              ref={inputRef}
+              className="kiosk-input"
+              value={numero}
+              onChange={e => {
+                setErrorMsg('');
+                setNumero(e.target.value.replace(/\D/g, '').slice(0, MAX_DIGITOS));
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="----"
+              maxLength={MAX_DIGITOS}
+              inputMode="numeric"
+              autoComplete="off"
+            />
 
-        {loading && <p style={{ marginTop: '1.5rem', color: 'var(--color-text-muted)' }}>Verificando...</p>}
-
-        {resultado && (
-          <div className={`kiosk-result ${resultado.accesoPermitido ? 'success' : 'error'}`}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-              {resultado.accesoPermitido ? '✅' : '❌'}
-            </div>
-            <strong>{resultado.mensaje}</strong>
-            {resultado.nombreCompleto && (
-              <div style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>{resultado.nombreCompleto}</div>
-            )}
-            {!resultado.accesoPermitido && resultado.estadoCuota === 'Pendiente' && (
-              <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                Por favor, regularizá tu cuota en recepción.
+            {errorMsg && (
+              <div className="kiosk-result error" style={{ marginTop: '1rem' }}>
+                {errorMsg}
               </div>
             )}
-          </div>
+
+            <div className="kiosk-keypad">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'].map(key => (
+                <button
+                  key={key}
+                  className={`kiosk-key${key === 'OK' ? ' action' : ''}${key === 'C' ? ' action' : ''}`}
+                  onClick={() => pressKey(key)}
+                  disabled={loading || (key !== 'OK' && key !== 'C' && key !== 'DEL' && numero.length >= MAX_DIGITOS)}
+                >
+                  {key === 'OK' ? '✓' : key === 'C' ? '✕' : key}
+                </button>
+              ))}
+            </div>
+
+            {loading && <p style={{ marginTop: '1.5rem', color: 'var(--color-text-muted)' }}>Verificando...</p>}
+
+            {resultado && (
+              <div className={`kiosk-result ${resultado.accesoPermitido ? 'success' : 'error'}`}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                  {resultado.accesoPermitido ? '✅' : '❌'}
+                </div>
+                <strong>{resultado.mensaje}</strong>
+                {resultado.nombreCompleto && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.95rem' }}>{resultado.nombreCompleto}</div>
+                )}
+                {!resultado.accesoPermitido && resultado.estadoCuota === 'Pendiente' && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                    Por favor, regularizá tu cuota en recepción.
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

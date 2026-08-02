@@ -21,7 +21,9 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
     {
         var emisor = await db.Emisores
             .FirstOrDefaultAsync(e => e.Slug == slug.Trim().ToLowerInvariant() && e.Activo);
-        return emisor == null ? NotFound() : new EmisorPublicoDto(emisor.Id, emisor.Nombre, emisor.Slug, emisor.Ciudad);
+        return emisor == null
+            ? NotFound()
+            : new EmisorPublicoDto(emisor.Id, emisor.Nombre, emisor.Slug, emisor.Ciudad, emisor.MostrarControlIngreso);
     }
 
     [Authorize(Roles = nameof(RolUsuario.SuperAdmin))]
@@ -72,6 +74,7 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
             Departamento = dto.Departamento?.Trim(),
             MostrarConfigPortero = dto.MostrarConfigPortero,
             MostrarSorteo = dto.MostrarSorteo,
+            MostrarControlIngreso = dto.MostrarControlIngreso,
         };
 
         db.Emisores.Add(emisor);
@@ -115,6 +118,7 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
         emisor.Departamento = dto.Departamento?.Trim();
         emisor.MostrarConfigPortero = dto.MostrarConfigPortero;
         emisor.MostrarSorteo = dto.MostrarSorteo;
+        emisor.MostrarControlIngreso = dto.MostrarControlIngreso;
 
         await db.SaveChangesAsync();
         return Map(emisor);
@@ -153,5 +157,5 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
 
     private static EmisorDto Map(Emisor e) => new(
         e.Id, e.Nombre, e.Slug, e.Ciudad, e.Departamento, e.Activo, e.FechaAlta,
-        e.MostrarConfigPortero, e.MostrarSorteo);
+        e.MostrarConfigPortero, e.MostrarSorteo, e.MostrarControlIngreso);
 }

@@ -13,6 +13,7 @@ interface AuthState {
   emisorSlug: string | null;
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
+  mostrarControlIngreso: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -20,7 +21,14 @@ interface AuthContextValue extends AuthState {
   isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  selectEmisor: (id: number, nombre: string, slug: string, mostrarConfigPortero?: boolean, mostrarSorteo?: boolean) => void;
+  selectEmisor: (
+    id: number,
+    nombre: string,
+    slug: string,
+    mostrarConfigPortero?: boolean,
+    mostrarSorteo?: boolean,
+    mostrarControlIngreso?: boolean,
+  ) => void;
   clearEmisorSelection: () => void;
   activeEmisorId: number | null;
 }
@@ -33,11 +41,13 @@ function loadStored(): AuthState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthState;
+    const parsed = JSON.parse(raw) as AuthState & { mostrarControlIngreso?: boolean };
     return {
       ...parsed,
       mostrarConfigPortero: !!parsed.mostrarConfigPortero,
       mostrarSorteo: !!parsed.mostrarSorteo,
+      // Default true si la sesión es anterior a este flag
+      mostrarControlIngreso: parsed.mostrarControlIngreso !== false,
     };
   } catch {
     return null;
@@ -80,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emisorSlug: res.emisorSlug,
       mostrarConfigPortero: !!res.mostrarConfigPortero,
       mostrarSorteo: !!res.mostrarSorteo,
+      mostrarControlIngreso: res.mostrarControlIngreso !== false,
     };
     setAuth(state);
     saveStored(state);
@@ -102,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     slug: string,
     mostrarConfigPortero = false,
     mostrarSorteo = false,
+    mostrarControlIngreso = true,
   ) => {
     setSelectedEmisorId(id);
     localStorage.setItem('gestionspa_emisor', String(id));
@@ -112,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emisorSlug: slug,
         mostrarConfigPortero,
         mostrarSorteo,
+        mostrarControlIngreso,
       };
       setAuth(updated);
       saveStored(updated);
@@ -136,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     emisorSlug: auth?.emisorSlug ?? null,
     mostrarConfigPortero: auth?.mostrarConfigPortero ?? false,
     mostrarSorteo: auth?.mostrarSorteo ?? false,
+    mostrarControlIngreso: auth?.mostrarControlIngreso !== false,
     isAuthenticated: !!auth?.token,
     isSuperAdmin: auth?.rol === 'SuperAdmin',
     login,
