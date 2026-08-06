@@ -57,6 +57,7 @@ export interface Emisor {
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
   mostrarControlIngreso: boolean;
+  mostrarAvisoPagoPendiente: boolean;
 }
 
 export interface CrearEmisorPayload {
@@ -70,6 +71,7 @@ export interface CrearEmisorPayload {
   mostrarConfigPortero?: boolean;
   mostrarSorteo?: boolean;
   mostrarControlIngreso?: boolean;
+  mostrarAvisoPagoPendiente?: boolean;
 }
 
 export interface ActualizarEmisorPayload {
@@ -80,6 +82,7 @@ export interface ActualizarEmisorPayload {
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
   mostrarControlIngreso: boolean;
+  mostrarAvisoPagoPendiente: boolean;
 }
 
 export interface EmisorPublico {
@@ -102,6 +105,7 @@ export interface LoginResponse {
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
   mostrarControlIngreso: boolean;
+  mostrarAvisoPagoPendiente: boolean;
 }
 
 export interface Cliente {

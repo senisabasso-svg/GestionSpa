@@ -19,6 +19,9 @@ public class Emisor
     /// <summary>Si se muestra el kiosk Control de Ingreso (menú, panel y URL pública).</summary>
     public bool MostrarControlIngreso { get; set; } = true;
 
+    /// <summary>Si al iniciar sesión se muestra un aviso informativo de pago pendiente (solo cartel).</summary>
+    public bool MostrarAvisoPagoPendiente { get; set; }
+
     public ICollection<Usuario> Usuarios { get; set; } = [];
     public ICollection<Familia> Familias { get; set; } = [];
     public ICollection<Socio> Socios { get; set; } = [];

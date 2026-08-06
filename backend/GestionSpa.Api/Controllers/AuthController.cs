@@ -49,5 +49,6 @@ public class AuthController(AppDbContext db, JwtTokenService jwt) : ControllerBa
         usuario.Emisor?.Nombre, usuario.Emisor?.Slug,
         usuario.Emisor?.MostrarConfigPortero ?? false,
         usuario.Emisor?.MostrarSorteo ?? false,
-        usuario.Emisor?.MostrarControlIngreso ?? true);
+        usuario.Emisor?.MostrarControlIngreso ?? true,
+        usuario.Emisor?.MostrarAvisoPagoPendiente ?? false);
 }

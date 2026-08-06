@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { APP_NAME } from '../config/branding';
 import { useEnhanceDataTables } from '../hooks/useEnhanceDataTables';
+import AvisoPagoPendienteModal from './AvisoPagoPendienteModal';
 
 const MOBILE_QUERY = '(max-width: 768px)';
 
@@ -107,6 +108,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <AvisoPagoPendienteModal />
     </div>
   );
 }

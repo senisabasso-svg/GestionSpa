@@ -18,6 +18,7 @@ const emptyForm = {
   mostrarConfigPortero: false,
   mostrarSorteo: false,
   mostrarControlIngreso: true,
+  mostrarAvisoPagoPendiente: false,
 };
 
 const slugify = (s: string) => s.toLowerCase()
@@ -61,6 +62,7 @@ export default function EmisoresPage() {
       mostrarConfigPortero: !!e.mostrarConfigPortero,
       mostrarSorteo: !!e.mostrarSorteo,
       mostrarControlIngreso: e.mostrarControlIngreso !== false,
+      mostrarAvisoPagoPendiente: !!e.mostrarAvisoPagoPendiente,
     });
     setErrors([]);
     setModal(true);
@@ -89,6 +91,7 @@ export default function EmisoresPage() {
           mostrarConfigPortero: form.mostrarConfigPortero,
           mostrarSorteo: form.mostrarSorteo,
           mostrarControlIngreso: form.mostrarControlIngreso,
+          mostrarAvisoPagoPendiente: form.mostrarAvisoPagoPendiente,
         });
       } else {
         await api.emisores.create({
@@ -102,6 +105,7 @@ export default function EmisoresPage() {
           mostrarConfigPortero: form.mostrarConfigPortero,
           mostrarSorteo: form.mostrarSorteo,
           mostrarControlIngreso: form.mostrarControlIngreso,
+          mostrarAvisoPagoPendiente: form.mostrarAvisoPagoPendiente,
         });
       }
       setModal(false);
@@ -234,7 +238,7 @@ export default function EmisoresPage() {
                 <td>{e.ciudad || '—'}</td>
                 <td><span className={`badge ${e.activo ? 'badge-success' : 'badge-neutral'}`}>{e.activo ? 'Activo' : 'Inactivo'}</span></td>
                 <td>
-                  <button className="btn btn-sm btn-primary" onClick={() => { selectEmisor(e.id, e.nombre, e.slug, e.mostrarConfigPortero, e.mostrarSorteo, e.mostrarControlIngreso !== false); navigate('/'); }}>Gestionar</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => { selectEmisor(e.id, e.nombre, e.slug, e.mostrarConfigPortero, e.mostrarSorteo, e.mostrarControlIngreso !== false, !!e.mostrarAvisoPagoPendiente); navigate('/'); }}>Gestionar</button>
                   <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => openEdit(e)}><Edit2 size={14} /></button>
                   <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => toggleActivo(e)}>
                     {e.activo ? 'Desactivar' : 'Activar'}
@@ -300,13 +304,21 @@ export default function EmisoresPage() {
               />
               Mostrar botón de sorteo
             </label>
-            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.5rem' }}>
               <input
                 type="checkbox"
                 checked={form.mostrarControlIngreso}
                 onChange={e => setForm({ ...form, mostrarControlIngreso: e.target.checked })}
               />
               Mostrar Control de Ingreso
+            </label>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
+              <input
+                type="checkbox"
+                checked={form.mostrarAvisoPagoPendiente}
+                onChange={e => setForm({ ...form, mostrarAvisoPagoPendiente: e.target.checked })}
+              />
+              Mostrar aviso de pago pendiente al iniciar sesión
             </label>
 
             {!editId && (

@@ -98,13 +98,15 @@ public record LoginResponseDto(
     string Token, int UsuarioId, string Email, string Nombre,
     RolUsuario Rol, int? EmisorId, string? EmisorNombre, string? EmisorSlug,
     bool MostrarConfigPortero = false, bool MostrarSorteo = false,
-    bool MostrarControlIngreso = true);
+    bool MostrarControlIngreso = true,
+    bool MostrarAvisoPagoPendiente = false);
 
 public record EmisorDto(
     int Id, string Nombre, string Slug, string? Ciudad, string? Departamento,
     bool Activo, DateTime FechaAlta,
     bool MostrarConfigPortero = false, bool MostrarSorteo = false,
-    bool MostrarControlIngreso = true);
+    bool MostrarControlIngreso = true,
+    bool MostrarAvisoPagoPendiente = false);
 
 public record EmisorPublicoDto(
     int Id, string Nombre, string Slug, string? Ciudad,
@@ -114,12 +116,14 @@ public record CrearEmisorDto(
     string Nombre, string Slug, string? Ciudad, string? Departamento,
     string AdminEmail, string AdminPassword, string AdminNombre,
     bool MostrarConfigPortero = false, bool MostrarSorteo = false,
-    bool MostrarControlIngreso = true);
+    bool MostrarControlIngreso = true,
+    bool MostrarAvisoPagoPendiente = false);
 
 public record ActualizarEmisorDto(
     string Nombre, string Slug, string? Ciudad, string? Departamento,
     bool MostrarConfigPortero = false, bool MostrarSorteo = false,
-    bool MostrarControlIngreso = true);
+    bool MostrarControlIngreso = true,
+    bool MostrarAvisoPagoPendiente = false);
 
 public record UsuarioDto(
     int Id, string Email, string Nombre, RolUsuario Rol,

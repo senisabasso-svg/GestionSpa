@@ -14,6 +14,7 @@ interface AuthState {
   mostrarConfigPortero: boolean;
   mostrarSorteo: boolean;
   mostrarControlIngreso: boolean;
+  mostrarAvisoPagoPendiente: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -28,6 +29,7 @@ interface AuthContextValue extends AuthState {
     mostrarConfigPortero?: boolean,
     mostrarSorteo?: boolean,
     mostrarControlIngreso?: boolean,
+    mostrarAvisoPagoPendiente?: boolean,
   ) => void;
   clearEmisorSelection: () => void;
   activeEmisorId: number | null;
@@ -41,13 +43,17 @@ function loadStored(): AuthState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthState & { mostrarControlIngreso?: boolean };
+    const parsed = JSON.parse(raw) as AuthState & {
+      mostrarControlIngreso?: boolean;
+      mostrarAvisoPagoPendiente?: boolean;
+    };
     return {
       ...parsed,
       mostrarConfigPortero: !!parsed.mostrarConfigPortero,
       mostrarSorteo: !!parsed.mostrarSorteo,
       // Default true si la sesión es anterior a este flag
       mostrarControlIngreso: parsed.mostrarControlIngreso !== false,
+      mostrarAvisoPagoPendiente: !!parsed.mostrarAvisoPagoPendiente,
     };
   } catch {
     return null;
@@ -91,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mostrarConfigPortero: !!res.mostrarConfigPortero,
       mostrarSorteo: !!res.mostrarSorteo,
       mostrarControlIngreso: res.mostrarControlIngreso !== false,
+      mostrarAvisoPagoPendiente: !!res.mostrarAvisoPagoPendiente,
     };
     setAuth(state);
     saveStored(state);
@@ -114,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mostrarConfigPortero = false,
     mostrarSorteo = false,
     mostrarControlIngreso = true,
+    mostrarAvisoPagoPendiente = false,
   ) => {
     setSelectedEmisorId(id);
     localStorage.setItem('gestionspa_emisor', String(id));
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mostrarConfigPortero,
         mostrarSorteo,
         mostrarControlIngreso,
+        mostrarAvisoPagoPendiente,
       };
       setAuth(updated);
       saveStored(updated);
@@ -150,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mostrarConfigPortero: auth?.mostrarConfigPortero ?? false,
     mostrarSorteo: auth?.mostrarSorteo ?? false,
     mostrarControlIngreso: auth?.mostrarControlIngreso !== false,
+    mostrarAvisoPagoPendiente: auth?.mostrarAvisoPagoPendiente ?? false,
     isAuthenticated: !!auth?.token,
     isSuperAdmin: auth?.rol === 'SuperAdmin',
     login,

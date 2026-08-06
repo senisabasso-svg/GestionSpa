@@ -75,6 +75,7 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
             MostrarConfigPortero = dto.MostrarConfigPortero,
             MostrarSorteo = dto.MostrarSorteo,
             MostrarControlIngreso = dto.MostrarControlIngreso,
+            MostrarAvisoPagoPendiente = dto.MostrarAvisoPagoPendiente,
         };
 
         db.Emisores.Add(emisor);
@@ -119,6 +120,7 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
         emisor.MostrarConfigPortero = dto.MostrarConfigPortero;
         emisor.MostrarSorteo = dto.MostrarSorteo;
         emisor.MostrarControlIngreso = dto.MostrarControlIngreso;
+        emisor.MostrarAvisoPagoPendiente = dto.MostrarAvisoPagoPendiente;
 
         await db.SaveChangesAsync();
         return Map(emisor);
@@ -157,5 +159,6 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
 
     private static EmisorDto Map(Emisor e) => new(
         e.Id, e.Nombre, e.Slug, e.Ciudad, e.Departamento, e.Activo, e.FechaAlta,
-        e.MostrarConfigPortero, e.MostrarSorteo, e.MostrarControlIngreso);
+        e.MostrarConfigPortero, e.MostrarSorteo, e.MostrarControlIngreso,
+        e.MostrarAvisoPagoPendiente);
 }
