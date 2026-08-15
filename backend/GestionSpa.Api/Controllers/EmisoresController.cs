@@ -11,7 +11,7 @@ namespace GestionSpa.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class EmisoresController(AppDbContext db, ITenantContext tenant) : ControllerBase
+public class EmisoresController(AppDbContext db, ITenantContext tenant, IPorteroIntegrationService portero) : ControllerBase
 {
     private static readonly Regex SlugRegex = new(@"^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.Compiled);
 
@@ -135,6 +135,17 @@ public class EmisoresController(AppDbContext db, ITenantContext tenant) : Contro
         emisor.Activo = activo;
         await db.SaveChangesAsync();
         return Map(emisor);
+    }
+
+    [Authorize(Roles = nameof(RolUsuario.SuperAdmin))]
+    [HttpGet("{id}/portero-usuarios-extraidos")]
+    public async Task<IActionResult> ExportPorteroUsuariosExtraidos(int id)
+    {
+        var emisor = await db.Emisores.FindAsync(id);
+        if (emisor == null) return NotFound();
+
+        var (content, fileName) = await portero.ExportUsuariosExtraidosGuardadosCsvAsync(emisor.Id, emisor.Slug);
+        return File(content, "text/csv; charset=utf-8", fileName);
     }
 
     private static List<string> ValidateEmisor(string nombre, string slug)

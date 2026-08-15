@@ -20,6 +20,7 @@ public interface IPorteroIntegrationService
     Task ProcessAccessWebhookAsync(string emisorSlug, PorteroWebhookPayload payload);
     Task<PorteroAccionDto> AbrirPuertaAsync(int emisorId);
     Task<(byte[] Content, string FileName)> ExportSociosPorteroCsvAsync(int emisorId, string emisorSlug);
+    Task<(byte[] Content, string FileName)> ExportUsuariosExtraidosGuardadosCsvAsync(int emisorId, string emisorSlug);
     Task<PorteroAccionDto> CancelarConsultaUsuariosPorteroAsync(int emisorId);
     Task<List<PorteroAgentComandoDto>> PullComandosAsync(string emisorSlug, string apiKey, int limit = 50);
     Task AckComandoAsync(string emisorSlug, string apiKey, long comandoId, PorteroAgentAckDto ack);
@@ -473,7 +474,11 @@ public class PorteroIntegrationService(
             "PorteroUsuariosExtraidos emisor={EmisorId}: lote={Lote} nuevos={Nuevos} actualizados={Actualizados} total={Total}",
             emisorId, lote.Count, nuevos, actualizados, existentes.Count);
 
-        // 4) CSV desde la tabla de GestionSpa (todo lo acumulado)
+        return await ExportUsuariosExtraidosGuardadosCsvAsync(emisorId, emisorSlug);
+    }
+
+    public async Task<(byte[] Content, string FileName)> ExportUsuariosExtraidosGuardadosCsvAsync(int emisorId, string emisorSlug)
+    {
         var todos = await db.PorteroUsuariosExtraidos.AsNoTracking()
             .Where(x => x.EmisorId == emisorId)
             .OrderBy(x => x.Pin)

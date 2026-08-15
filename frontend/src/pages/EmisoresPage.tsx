@@ -41,6 +41,7 @@ export default function EmisoresPage() {
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [resultadoPlataforma, setResultadoPlataforma] = useState<PlatformImportResult | null>(null);
+  const [descargandoUsuariosExtraidos, setDescargandoUsuariosExtraidos] = useState(false);
 
   const load = () => api.emisores.list().then(setEmisores).catch(console.error);
   const cargarResumenPlataforma = () => api.adminBackup.resumenPlatform().then(setResumenPlataforma).catch(() => setResumenPlataforma(null));
@@ -65,7 +66,21 @@ export default function EmisoresPage() {
       mostrarAvisoPagoPendiente: !!e.mostrarAvisoPagoPendiente,
     });
     setErrors([]);
+    setDescargandoUsuariosExtraidos(false);
     setModal(true);
+  };
+
+  const descargarUsuariosExtraidos = async () => {
+    if (!editId) return;
+    setDescargandoUsuariosExtraidos(true);
+    setErrors([]);
+    try {
+      await api.emisores.exportarUsuariosExtraidos(editId);
+    } catch (e) {
+      setErrors([e instanceof Error ? e.message : 'No se pudo descargar el CSV']);
+    } finally {
+      setDescargandoUsuariosExtraidos(false);
+    }
   };
 
   const save = async () => {
@@ -320,6 +335,23 @@ export default function EmisoresPage() {
               />
               Mostrar aviso de pago pendiente al iniciar sesión
             </label>
+
+            {editId && (
+              <div style={{ margin: '0 0 1rem', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <p style={{ margin: '0 0 0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Usuarios extraídos del portero (tabla guardada, sin consultar el equipo).
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={descargandoUsuariosExtraidos}
+                  onClick={descargarUsuariosExtraidos}
+                >
+                  <Download size={16} style={{ marginRight: 6 }} />
+                  {descargandoUsuariosExtraidos ? 'Descargando…' : 'Descargar usuarios extraídos'}
+                </button>
+              </div>
+            )}
 
             {!editId && (
               <>

@@ -100,6 +100,8 @@ export const api = {
       request<import('../types').Emisor>(`/emisores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     toggleActivo: (id: number, activo: boolean) =>
       request<import('../types').Emisor>(`/emisores/${id}/activo`, { method: 'PATCH', body: JSON.stringify(activo) }),
+    exportarUsuariosExtraidos: (id: number) =>
+      downloadFile(`/emisores/${id}/portero-usuarios-extraidos`, 'usuarios-equipo.csv'),
   },
   socios: {
     list: (buscar?: string, estado?: string) => {
