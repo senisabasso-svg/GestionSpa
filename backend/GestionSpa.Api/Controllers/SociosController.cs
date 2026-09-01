@@ -14,6 +14,7 @@ namespace GestionSpa.Api.Controllers;
 public class SociosController(
     AppDbContext db,
     CuotaService cuotaService,
+    CuotaCobroService cuotaCobro,
     ITenantContext tenant,
     IPorteroIntegrationService portero) : ControllerBase
 {
@@ -195,6 +196,70 @@ public class SociosController(
             await portero.TryRemoveSocioAsync(socio);
 
         return Map(socio);
+    }
+
+    [HttpPost("{id}/generar-cuota")]
+    public async Task<ActionResult<CuotaMensualDto>> GenerarCuota(int id)
+    {
+        var emisorId = tenant.RequireEmisorId();
+        try
+        {
+            var cuota = await cuotaCobro.PrepararCuotaSocioAsync(emisorId, id);
+            if (cuota.SaldoPendiente <= 0 && cuota.EstadoPago == EstadoPago.Pagado)
+                return BadRequest(new { mensaje = $"La cuota de {cuota.Mes}/{cuota.Anio} ya está pagada" });
+            return cuota;
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
+    }
+
+    [HttpPost("{id}/cobrar-cuota")]
+    public async Task<ActionResult<CobrarCuotaSocioResultDto>> CobrarCuota(int id, RegistrarPagoDto dto)
+    {
+        var emisorId = tenant.RequireEmisorId();
+        try
+        {
+            var cuota = await cuotaCobro.PrepararCuotaSocioAsync(emisorId, id);
+            if (cuota.SaldoPendiente <= 0 && cuota.EstadoPago == EstadoPago.Pagado)
+                return BadRequest(new { mensaje = $"La cuota de {cuota.Mes}/{cuota.Anio} ya está pagada" });
+
+            var pago = await cuotaCobro.CobrarCuotaAsync(emisorId, cuota.Id, dto);
+            var socioIds = await cuotaCobro.ObtenerSociosParaExtenderVencimientoAsync(id, cuota);
+            var nuevaVencimiento = await cuotaCobro.ExtenderVencimientoDesdePagoAsync(socioIds);
+
+            foreach (var socioId in socioIds)
+            {
+                var s = await db.Socios.ForTenant(tenant).Include(x => x.Familia)
+                    .FirstOrDefaultAsync(x => x.Id == socioId);
+                if (s != null && s.Estado == EstadoSocio.Activo)
+                    await portero.TrySyncSocioAsync(s);
+            }
+
+            var fechaLocal = UruguayTime.Now.Date.AddMonths(1);
+            var mensaje = cuota.EsFamilia
+                ? $"Cuota familiar cobrada. Vencimiento de integrantes actualizado al {fechaLocal:dd/MM/yyyy}."
+                : $"Cuota cobrada. Vencimiento actualizado al {fechaLocal:dd/MM/yyyy}.";
+
+            return new CobrarCuotaSocioResultDto(pago, nuevaVencimiento, mensaje);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (ArgumentException ex)
+        {
+            return ValidationHelper.ToBadRequest(new List<string> { ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message, errores = new[] { ex.Message } });
+        }
     }
 
     [HttpDelete("{id}")]

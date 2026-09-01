@@ -165,6 +165,12 @@ export interface PagoRegistrado {
   segundosParaRevertir: number;
 }
 
+export interface CobrarCuotaSocioResult {
+  pago: PagoRegistrado;
+  nuevaFechaVencimiento: string;
+  mensaje: string;
+}
+
 export interface CuotaMensual {
   id: number;
   socioId: number;

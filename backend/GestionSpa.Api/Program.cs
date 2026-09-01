@@ -41,6 +41,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<CuotaService>();
+builder.Services.AddScoped<CuotaCobroService>();
 builder.Services.AddScoped<IngresoAccesoService>();
 builder.Services.AddScoped<IPorteroIntegrationService, PorteroIntegrationService>();
 builder.Services.AddScoped<IEmisorBackupService, EmisorBackupService>();

@@ -115,6 +115,10 @@ export const api = {
     create: (data: unknown) => request<import('../types').Socio>('/socios', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: unknown) => request<import('../types').Socio>(`/socios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     cambiarEstado: (id: number, estado: string) => request<import('../types').Socio>(`/socios/${id}/estado`, { method: 'PATCH', body: JSON.stringify(estado) }),
+    generarCuota: (id: number) =>
+      request<import('../types').CuotaMensual>(`/socios/${id}/generar-cuota`, { method: 'POST' }),
+    cobrarCuota: (id: number, data: unknown) =>
+      request<import('../types').CobrarCuotaSocioResult>(`/socios/${id}/cobrar-cuota`, { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/socios/${id}`, { method: 'DELETE' }),
   },
   clientes: {

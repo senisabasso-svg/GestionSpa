@@ -5,6 +5,9 @@ import { formatUYU, formatFecha, METODOS_PAGO, labelMetodoPago, fechaHoyLocal, L
 import { validateSocio, LIMITS } from '../utils/validation';
 import { Plus, Edit2, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import UndoPagoBanner from '../components/UndoPagoBanner';
+import type { CuotaMensual, PagoRegistrado } from '../types';
+import { MESES } from '../types';
 
 const hoy = () => fechaHoyLocal();
 
@@ -59,6 +62,13 @@ export default function SociosPage() {
   const [confirmSuspend, setConfirmSuspend] = useState<Socio | null>(null);
   const [buscarDebounced, setBuscarDebounced] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [generandoCuotaId, setGenerandoCuotaId] = useState<number | null>(null);
+  const [pagoModal, setPagoModal] = useState<{ socioId: number; cuota: CuotaMensual } | null>(null);
+  const [pagoForm, setPagoForm] = useState({ monto: 0, metodoPago: 'Efectivo', referencia: '', registradoPor: '' });
+  const [pagoError, setPagoError] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
+  const [undoPago, setUndoPago] = useState<PagoRegistrado | null>(null);
+  const [undoEtiqueta, setUndoEtiqueta] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setBuscarDebounced(buscar), 300);
@@ -130,6 +140,42 @@ export default function SociosPage() {
     }
   };
 
+  const generarCuota = async (s: Socio) => {
+    setGenerandoCuotaId(s.id);
+    setPagoError('');
+    setInfoMsg('');
+    try {
+      const cuota = await api.socios.generarCuota(s.id);
+      setPagoModal({ socioId: s.id, cuota });
+      setPagoForm({
+        monto: cuota.saldoPendiente,
+        metodoPago: s.medioPago || 'Efectivo',
+        referencia: '',
+        registradoPor: '',
+      });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'No se pudo generar la cuota');
+    } finally {
+      setGenerandoCuotaId(null);
+    }
+  };
+
+  const registrarPagoCuota = async () => {
+    if (!pagoModal) return;
+    setPagoError('');
+    if (pagoForm.monto <= 0) { setPagoError('El monto debe ser mayor a 0'); return; }
+    try {
+      const res = await api.socios.cobrarCuota(pagoModal.socioId, pagoForm);
+      setUndoEtiqueta(pagoModal.cuota.socioNombre);
+      setUndoPago(res.pago);
+      setInfoMsg(res.mensaje);
+      setPagoModal(null);
+      load();
+    } catch (e) {
+      setPagoError(e instanceof Error ? e.message : 'Error al registrar pago');
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -146,6 +192,14 @@ export default function SociosPage() {
         </button>
         <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Socio</button>
       </div>
+
+      {infoMsg && <div className="alert alert-success">{infoMsg}</div>}
+      <UndoPagoBanner
+        pago={undoPago}
+        etiqueta={undoEtiqueta}
+        onDismiss={() => setUndoPago(null)}
+        onReverted={load}
+      />
 
       <div className="card table-container">
         <table className="data-table">
@@ -191,7 +245,18 @@ export default function SociosPage() {
                 <td>
                   <button className="btn btn-sm btn-secondary" onClick={() => openEdit(s)}><Edit2 size={14} /></button>
                   {s.estado === 'Activo' && (
-                    <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => setConfirmSuspend(s)}>Suspender</button>
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-success"
+                        style={{ marginLeft: 4 }}
+                        disabled={generandoCuotaId === s.id}
+                        onClick={() => generarCuota(s)}
+                      >
+                        {generandoCuotaId === s.id ? '…' : 'Generar cuota'}
+                      </button>
+                      <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => setConfirmSuspend(s)}>Suspender</button>
+                    </>
                   )}
                   {(s.estado === 'Suspendido' || s.estado === 'Inactivo') && (
                     <button className="btn btn-sm btn-success" style={{ marginLeft: 4 }} onClick={() => cambiarEstado(s.id, 'Activo')}>Activar</button>
@@ -330,6 +395,42 @@ export default function SociosPage() {
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setConfirmSuspend(null)}>Cancelar</button>
               <button className="btn btn-danger" onClick={() => cambiarEstado(confirmSuspend.id, 'Suspendido')}>Suspender</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pagoModal && (
+        <div className="modal-overlay" onClick={() => setPagoModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>{pagoModal.cuota.esFamilia ? 'Cobrar cuota familiar' : 'Cobrar cuota'}</h3>
+            <p style={{ marginBottom: '1rem' }}>
+              <strong>{pagoModal.cuota.socioNombre}</strong>
+              {pagoModal.cuota.esFamilia ? ' (familia)' : ''} — {MESES[pagoModal.cuota.mes - 1]} {pagoModal.cuota.anio}
+              <br />Saldo pendiente: <strong>{formatUYU(pagoModal.cuota.saldoPendiente)}</strong>
+            </p>
+            <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Al confirmar, el vencimiento se extiende 1 mes desde hoy.
+              {pagoModal.cuota.esFamilia ? ' Aplica a todos los integrantes activos.' : ''}
+            </p>
+            {pagoError && <div className="alert alert-error">{pagoError}</div>}
+            <div className="form-group">
+              <label>Monto (UYU)</label>
+              <input className="form-control" type="number" min={1} value={pagoForm.monto} onChange={e => setPagoForm({ ...pagoForm, monto: Number(e.target.value) })} />
+            </div>
+            <div className="form-group">
+              <label>Método de pago</label>
+              <select className="form-control" value={pagoForm.metodoPago} onChange={e => setPagoForm({ ...pagoForm, metodoPago: e.target.value })}>
+                <option value="Efectivo">Efectivo</option>
+                <option value="TarjetaDebito">Tarjeta de débito</option>
+                <option value="TarjetaCredito">Tarjeta de crédito</option>
+                <option value="Transferencia">Transferencia bancaria</option>
+                <option value="MercadoPago">Mercado Pago</option>
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setPagoModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={registrarPagoCuota}>Confirmar pago</button>
             </div>
           </div>
         </div>

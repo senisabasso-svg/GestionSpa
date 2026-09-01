@@ -57,6 +57,9 @@ public record CrearCargoDto(
 
 public record AnularCargoDto(string? Motivo);
 
+public record CobrarCuotaSocioResultDto(
+    PagoRegistradoDto Pago, DateTime NuevaFechaVencimiento, string Mensaje);
+
 public record CuotaFamiliaIntegranteDto(
     int SocioId, string NumeroSocio, string NombreCompleto, decimal MontoServicios);
 

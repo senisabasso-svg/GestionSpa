@@ -30,4 +30,12 @@ public static class UruguayTime
         TimeZoneInfo.ConvertTimeToUtc(new DateTime(anio, mes, 10, 23, 59, 59, DateTimeKind.Unspecified), Tz);
 
     public static bool EsDespuesDelDia10() => Now.Day > 10;
+
+    /// <summary>Vencimiento = mismo día del mes siguiente al pago (fin de día Uruguay, UTC).</summary>
+    public static DateTime VencimientoUnMesDesde(DateTime fechaPagoLocal)
+    {
+        var target = fechaPagoLocal.Date.AddMonths(1);
+        return TimeZoneInfo.ConvertTimeToUtc(
+            new DateTime(target.Year, target.Month, target.Day, 23, 59, 59, DateTimeKind.Unspecified), Tz);
+    }
 }
